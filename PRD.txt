@@ -1,0 +1,361 @@
+# AuraGen MPS — Complete PRD
+
+AuraGen MPS is a local-first, censored text-to-image model for Apple Silicon Macs in the 1B–2B parameter range, designed to generate high-quality images with low latency, strong prompt fidelity, and safe creative flexibility. The product focuses on practical use cases like movie posters, character art, ads, thumbnails, concept art, and stylized visuals while running efficiently on MPS and optionally Core ML. [proceedings.neurips](https://proceedings.neurips.cc/paper_files/paper/2024/file/8bea36ac39e11ebe49e9eddbd4b8bd3a-Paper-Conference.pdf)
+
+## 1) Product Vision
+
+AuraGen MPS should feel like a small, private, fast alternative to cloud image generators, with the strongest possible quality within a compact model budget. The model must let users create polished images from natural language prompts, while also enforcing strong safety controls so unsafe requests are refused or transformed into safe alternatives. [pmc.ncbi.nlm.nih](https://pmc.ncbi.nlm.nih.gov/articles/PMC12381170/)
+
+The core promise is simple: “type a good prompt, get a good image, locally, fast, and safely.” The model should not try to be a full cloud-scale competitor on every dimension; instead, it should dominate in local responsiveness, controlled creativity, and low deployment friction on Mac. [machinelearning.apple](https://machinelearning.apple.com/papers/apple_intelligence_foundation_language_models_tech_report_2025.pdf)
+
+## 2) Product Goals
+
+The primary goal is to deliver a strong local image generator that can be used offline or semi-offline on Apple Silicon Macs. The product should support consistent quality across common creative tasks, especially poster-like compositions and stylized concept art where users care about layout, mood, and subject clarity. [apple.github](https://apple.github.io/coremltools/docs-guides/source/opt-overview.html)
+
+The secondary goal is to make the model controllable enough for safe consumer use. That means the system should block harmful prompts, reject disallowed content, and reduce accidental unsafe output without making the model overly restrictive for legitimate fictional or commercial content. [towardsdatascience](https://towardsdatascience.com/gen-ai-safety-landscape-a-guide-to-the-mitigation-stack-for-text-to-image-models-0848eb613ce5/)
+
+## 3) Target Users
+
+Primary users are indie developers, designers, content creators, and AI tinkerers using Macs. These users want local inference for privacy, lower cost, and predictable performance, and they are comfortable with prompt engineering and local model configuration. [neurocanvas](https://neurocanvas.net/blog/stable-diffusion-apple-guide/)
+
+Secondary users are product teams and startups who need a local or edge-friendly image generation engine embedded inside their own app. They care about API-like reliability, predictable latency, and the ability to run the model in a lightweight app or workflow tool. [machinelearning.apple](https://machinelearning.apple.com/research/apple-foundation-models-2025-updates)
+
+## 4) Core Use Cases
+
+AuraGen MPS should support:
+- Movie posters with fictional characters.
+- Social media creatives and ad visuals.
+- Concept art and environment ideation.
+- Stylized portraits and character sheets.
+- Product mockups and hero images.
+- Safe inpainting or variant generation later in the roadmap.
+
+These use cases are ideal because they value composition, style, and prompt fidelity more than ultra-photoreal celebrity-like realism. A compact model can perform well here if it is trained on curated high-quality data and evaluated with prompt-diverse benchmarks. [arxiv](https://www.arxiv.org/abs/2506.02161)
+
+## 5) Model Scope
+
+The model size target is 1.2B to 1.8B parameters, with an upper ceiling of 2B only if latency and memory still remain acceptable on Mac. The best practical product choice is likely around 1.4B–1.6B parameters, since that gives a better balance of quality, speed, and trainability than pushing to the maximum allowed size. [arxiv](http://arxiv.org/abs/2305.15798v3)
+
+The system should be small enough to fit local consumer workflows but not so tiny that it collapses on complex prompts or loses style coherence. If the model is too small, it will underfit and become bland; if it is too large, it will lose the local advantage that makes the product valuable. [apple.github](https://apple.github.io/coremltools/docs-guides/source/opt-overview.html)
+
+## 6) Recommended Name
+
+The best name I recommend is **AuraGen MPS**. It sounds product-ready, suggests creative quality, and still reflects the Apple Silicon optimization angle without sounding too technical or too generic. [huggingface](https://huggingface.co/docs/diffusers/optimization/mps)
+
+Alternative names if you want a more premium brand feel:
+- LumaForge.
+- NovaCanvas.
+- PrismWeave.
+- EmberFrame.
+
+For a developer-centric brand, AuraGen MPS is the strongest because it is clear, memorable, and aligned with the product’s local-generation story. [machinelearning.apple](https://machinelearning.apple.com/research/apple-foundation-models-2025-updates)
+
+## 7) Product Principles
+
+AuraGen MPS should follow five principles:
+- Local first.
+- Safe by default.
+- Fast enough for interactive use.
+- High prompt fidelity over raw scale.
+- Curated quality over uncontrolled data volume.
+
+These principles keep the scope focused. They also prevent the common failure mode of trying to build a “giant model” when your actual product advantage is low-latency local creation with strong control. [machinelearning.apple](https://machinelearning.apple.com/papers/apple_intelligence_foundation_language_models_tech_report_2025.pdf)
+
+## 8) Architecture Overview
+
+The recommended architecture is a compact latent text-to-image system built around a distilled diffusion or rectified-flow backbone. A text adapter translates user prompts into structured conditioning, and a safety layer filters or rewrites risky requests before generation. [build.nvidia](https://build.nvidia.com/black-forest-labs/flux_1-schnell/modelcard)
+
+The architecture should have four major blocks:
+1. Prompt understanding layer.
+2. Safety moderation and rewrite layer.
+3. Image generation backbone.
+4. Post-generation quality and safety checker.
+
+This structure is better than relying on the image model alone, because prompt moderation and output screening significantly improve safety and reduce harmful outputs. [proceedings.neurips](https://proceedings.neurips.cc/paper_files/paper/2024/file/8bea36ac39e11ebe49e9eddbd4b8bd3a-Paper-Conference.pdf)
+
+## 9) Why This Architecture
+
+A compact diffusion-style backbone is the most realistic option for a high-quality local image model in this size range. Research on lightweight diffusion shows that block pruning, feature distillation, and compact backbones can preserve strong quality while reducing latency and model size. [arxiv](http://arxiv.org/abs/2305.15798v3)
+
+A rectified-flow or modern diffusion variant is also easier to align with fast sampling strategies than older heavy pipelines. That matters because interactive product workflows need quick feedback, and latency is a first-class feature on Mac. [build.nvidia](https://build.nvidia.com/black-forest-labs/flux_1-schnell/modelcard)
+
+## 10) Apple Silicon Deployment
+
+The first-class deployment target should be Apple Silicon Macs using MPS, with a path to Core ML export for the best runtime efficiency. Hugging Face documents MPS as the primary Apple Silicon acceleration path, while Apple’s optimization guidance emphasizes quantization, palettization, pruning, and memory-efficient deployment. [huggingface](https://huggingface.co/docs/diffusers/optimization/mps)
+
+The recommended deployment stack is:
+- Development and experimentation: PyTorch + MPS.
+- Performance export: Core ML where possible.
+- Runtime app integration: local macOS app or service.
+- Optional orchestration: Ollama for prompt planning and safety logic.
+
+Apple’s optimization guidance notes that 8-bit quantization, palettization, and pruning can substantially improve runtime memory and latency, which is critical for a local image system. [machinelearning.apple](https://machinelearning.apple.com/papers/apple_intelligence_foundation_language_models_tech_report_2025.pdf)
+
+## 11) Ollama Integration
+
+Ollama should be used as the language orchestration layer, not the image renderer itself. It can generate improved prompts, apply style templates, perform safety rewrites, and produce structured instructions for the image model. [youtube](https://www.youtube.com/watch?v=MSYWay1zueA)
+
+This makes the system more usable because the user can type short prompts while the assistant expands them into higher-quality generation instructions. For example, “movie poster with cyberpunk hero” can become a richer internal prompt with scene, lighting, typography space, mood, and composition cues. [arxiv](https://www.arxiv.org/abs/2506.02161)
+
+## 12) Prompt System
+
+The model should support a structured prompt format internally:
+- Subject.
+- Action.
+- Environment.
+- Style.
+- Lighting.
+- Camera.
+- Mood.
+- Quality emphasis.
+- Safety constraints.
+
+This structure improves output consistency and helps the model understand difficult prompts. The system should still accept plain natural language, but the backend should normalize inputs before generation. [crfm.stanford](https://crfm.stanford.edu/heim/v1.0.0/)
+
+Example internal prompt expansion:
+- User prompt: “Make a movie poster of a rogue astronaut in red space armor.”
+- Internal prompt: “cinematic movie poster, rogue astronaut in red space armor, dramatic lighting, centered heroic composition, deep contrast, vast cosmic background, title-safe negative space, high detail, polished finish.”
+
+This kind of prompt rewriting improves clarity without forcing the user to learn prompt engineering. [youtube](https://www.youtube.com/watch?v=MSYWay1zueA)
+
+## 13) Safety and Censorship
+
+AuraGen MPS must be censored by design. The system should reject illegal, violent, explicit, exploitative, or privacy-invasive prompts and refuse to produce unsafe outputs. At the same time, it should allow safe fictional creativity such as fantasy characters, movie posters, superhero scenes, and commercial concept art. [pmc.ncbi.nlm.nih](https://pmc.ncbi.nlm.nih.gov/articles/PMC12381170/)
+
+The safety stack should include:
+- Input prompt classifier.
+- Semantic rewrite layer for borderline prompts.
+- Output image classifier.
+- Policy-based refusal logic.
+- Audit logs for moderation events.
+
+This layered approach is stronger than a single binary classifier because it reduces both unsafe escapes and unnecessary refusals. [towardsdatascience](https://towardsdatascience.com/gen-ai-safety-landscape-a-guide-to-the-mitigation-stack-for-text-to-image-models-0848eb613ce5/)
+
+## 14) Hallucination Reduction
+
+For image models, hallucination usually means unwanted objects, wrong text, broken anatomy, inconsistent characters, or prompt drift. The PRD should define hallucination reduction as a core quality target rather than treating it as a vague general problem. [arxiv](https://arxiv.org/html/2604.10556v1)
+
+Mitigations should include:
+- Better prompt conditioning.
+- Distilled training from a stronger teacher.
+- Curated examples for difficult compositions.
+- Negative prompt support.
+- Output ranking or rejection sampling.
+- Multi-pass generation for critical prompts.
+- Specialized evaluation on object count, text accuracy, and composition correctness.
+
+Recent diffusion research indicates hallucinations can be reduced substantially using targeted metrics and generation-time controls, which supports adding explicit hallucination checks in the product pipeline. [proceedings.neurips](https://proceedings.neurips.cc/paper_files/paper/2024/file/f29369d192b13184b65c6d2515474d78-Paper-Conference.pdf)
+
+## 15) Overfitting Controls
+
+To avoid overfitting, the training pipeline should use:
+- Strong deduplication.
+- Train/validation/test separation by prompt family.
+- Broad prompt diversity.
+- Style balancing.
+- Early stopping.
+- Regular evaluation on unseen compositions.
+- Limited epochs on narrow style subsets.
+
+The model is especially vulnerable to overfitting if you overuse a small poster dataset or a narrow style set. The PRD should explicitly require that no single style family dominates training, because that would cause brittle generation and poor generalization. [arxiv](https://www.arxiv.org/abs/2506.02161)
+
+## 16) Underfitting Controls
+
+Underfitting is the opposite risk: the model becomes too weak to handle detailed prompts, complex scenes, or compositional control. To avoid underfitting, the model should not be compressed too aggressively, and it should use a sufficiently expressive backbone with careful teacher-student distillation. [apple.github](https://apple.github.io/coremltools/docs-guides/source/opt-overview.html)
+
+Mitigations include:
+- Staying near 1.4B–1.6B rather than shrinking too far.
+- Using a strong teacher model for distillation.
+- Keeping enough training diversity.
+- Evaluating on hard prompts, not just simple captions.
+- Reserving capacity for composition and text rendering.
+
+A tiny model can be fast, but if it fails on multi-subject prompts or poster layouts, users will perceive it as low quality even if it is technically efficient. [arxiv](http://arxiv.org/abs/2305.15798v3)
+
+## 17) Data Requirements
+
+The model needs a carefully curated dataset composed of:
+- High-quality captioned image-text pairs.
+- Composition-rich cinematic visuals.
+- Poster and advertising layouts.
+- Typography samples for text rendering.
+- Diverse styles: realism, illustration, 3D, fantasy, product, editorial.
+- Safe-only examples for moderation tuning.
+
+The data must be aggressively filtered for duplicates, watermarks, low-quality images, broken captions, and unsafe content. Safety and quality are both highly dependent on dataset curation, and research on T2I safety consistently shows that prompt filters and post-generation screening matter. [pmc.ncbi.nlm.nih](https://pmc.ncbi.nlm.nih.gov/articles/PMC12381170/)
+
+## 18) Dataset Strategy
+
+Use a three-tier data strategy:
+1. General data for broad visual grounding.
+2. Specialty data for poster quality, style fidelity, and text-in-image.
+3. Safety-labeled data for censored behavior.
+
+This prevents the model from becoming visually generic. It also ensures the model learns how to perform on the exact tasks your users care about, instead of only learning generic caption-image association. [crfm.stanford](https://crfm.stanford.edu/heim/v1.0.0/)
+
+## 19) Training Pipeline
+
+The training pipeline should be:
+1. Start from an open pretrained backbone or teacher.
+2. Distill into a compact student model.
+3. Fine-tune on curated creative datasets.
+4. Add safety alignment.
+5. Add poster and style adapters.
+6. Validate on internal benchmark suites.
+7. Run final compression and deployment optimization.
+
+This stage-based approach is the only realistic way to reach high quality in a 1B–2B footprint. Research on compact diffusion makes it clear that distillation and pruning are the practical levers for keeping quality while shrinking size and latency. [arxiv](http://arxiv.org/abs/2305.15798v3)
+
+## 20) Evaluation Framework
+
+The model should be evaluated with a multi-metric framework rather than a single “accuracy” number. For image generation, “90% accuracy” must be translated into measurable target scores across multiple dimensions. [crfm.stanford](https://crfm.stanford.edu/heim/v1.0.0/)
+
+Core metrics:
+- Prompt adherence score.
+- Human preference score.
+- Composition correctness score.
+- Subject consistency score.
+- Text rendering accuracy.
+- Safety refusal precision.
+- Safety refusal recall.
+- Hallucination rate.
+- Latency per image.
+- Memory footprint.
+- Failure rate under long prompts.
+
+This is the most honest way to define success, because image generation quality is multi-dimensional and cannot be captured by one metric. [arxiv](https://arxiv.org/html/2604.10556v1)
+
+## 21) Target Metrics
+
+Suggested launch targets:
+- Prompt adherence: 85%+ on internal benchmark.
+- Safe refusal precision: 95%+.
+- Safe refusal recall: 90%+.
+- Hallucination reduction: 50%+ improvement over baseline model on hard prompts.
+- Text rendering: 70%+ on simple poster text, with a roadmap to higher.
+- Median latency: under 10 seconds on a capable Apple Silicon Mac for a standard image.
+- Memory footprint: fit within consumer Mac unified memory without constant swapping.
+- User satisfaction: 4.5/5 or better on closed beta.
+
+These are realistic product targets for a compact local model and are much more meaningful than raw parameter count alone. [proceedings.neurips](https://proceedings.neurips.cc/paper_files/paper/2024/file/f29369d192b13184b65c6d2515474d78-Paper-Conference.pdf)
+
+## 22) Quality Benchmark Suite
+
+The PRD should define an internal benchmark suite with these categories:
+- Single subject prompts.
+- Multi-character prompts.
+- Movie poster prompts.
+- Text-in-image prompts.
+- Style transfer prompts.
+- Safety boundary prompts.
+- Long descriptive prompts.
+- Composition-heavy prompts.
+
+Public benchmarks show that instruction-following evaluation for T2I needs diverse prompt complexity and text-rendering tests, so your benchmark suite must reflect that. [arxiv](https://www.arxiv.org/abs/2506.02161)
+
+## 23) Latency Strategy
+
+Latency matters because local generation should feel interactive. To keep latency low:
+- Use optimized sampling steps.
+- Prefer distilled student models.
+- Quantize or palettize where safe.
+- Reduce unnecessary high-cost layers.
+- Cache prompt embeddings.
+- Support progressive preview rendering.
+
+Apple’s Core ML optimization guidance explicitly supports quantization and pruning for latency gains, especially on Neural Engine-compatible paths. [machinelearning.apple](https://machinelearning.apple.com/papers/apple_intelligence_foundation_language_models_tech_report_2025.pdf)
+
+## 24) Error Handling
+
+The system should gracefully handle:
+- Unsafe prompts.
+- Ambiguous prompts.
+- Overly long prompts.
+- Unsupported styles.
+- Memory pressure.
+- Generation failure.
+- Poor-quality outputs.
+
+Instead of hard crashing, the app should either refuse safely, rewrite the prompt, reduce quality settings, or ask for a simpler prompt. This matters because user trust falls quickly if the system fails unpredictably. [towardsdatascience](https://towardsdatascience.com/gen-ai-safety-landscape-a-guide-to-the-mitigation-stack-for-text-to-image-models-0848eb613ce5/)
+
+## 25) Output Controls
+
+The user interface should provide:
+- Style presets.
+- Safety level indicator.
+- Quality-vs-speed slider.
+- Aspect ratio options.
+- Creativity control.
+- Negative prompt field.
+- Seed control.
+- “Poster mode” and “Character mode.”
+
+These controls make the small model feel more capable because users can steer it toward the kinds of outputs it handles best. Good controls also reduce hallucination by tightening the generation space. [proceedings.neurips](https://proceedings.neurips.cc/paper_files/paper/2024/file/f29369d192b13184b65c6d2515474d78-Paper-Conference.pdf)
+
+## 26) Product Roadmap
+
+Phase 1:
+- Build local prototype.
+- Validate MPS runtime.
+- Add prompt rewrite via Ollama.
+- Test basic safety filtering.
+
+Phase 2:
+- Train compact backbone.
+- Run first benchmark suite.
+- Add posterior moderation.
+- Improve poster and text rendering performance.
+
+Phase 3:
+- Add style adapters and LoRA packs.
+- Export Core ML optimized path.
+- Launch closed beta.
+
+Phase 4:
+- Add inpainting.
+- Add reference-image support.
+- Improve speed and quality tradeoffs.
+- Publish SDK or developer tooling.
+
+This roadmap keeps the project realistic and staged instead of trying to solve everything on day one. [huggingface](https://huggingface.co/docs/diffusers/optimization/mps)
+
+## 27) Technical Requirements
+
+Mandatory:
+- Runs on Apple Silicon.
+- Supports MPS.
+- Safety filtering at input and output.
+- 1B–2B parameter footprint.
+- Structured prompt processing.
+- Distillation-ready training pipeline.
+- Benchmark dashboard.
+
+Optional but recommended:
+- Core ML export.
+- Ollama orchestration.
+- LoRA adapter support.
+- Progressive preview generation.
+- Local caching for repeated prompts.
+
+These requirements make the system shippable as a local Mac product rather than just a research demo. [youtube](https://www.youtube.com/watch?v=MSYWay1zueA)
+
+## 28) Success Criteria
+
+AuraGen MPS is successful if it can:
+- Generate visually compelling images from natural language prompts.
+- Safely refuse prohibited content.
+- Produce strong movie poster and character art outputs.
+- Run locally with good latency on Apple Silicon.
+- Maintain stable quality without heavy overfitting.
+- Avoid severe underfitting across common prompt types.
+- Beat larger cloud competitors in privacy and local responsiveness, even if not in absolute scale.
+
+Success should be measured by benchmark scores, user feedback, and latency metrics, not only by model size. [apple.github](https://apple.github.io/coremltools/docs-guides/source/opt-overview.html)
+
+## 29) Final PRD Summary
+
+AuraGen MPS should be a compact, censored, local-first image generation model in the 1B–2B range, optimized for Apple Silicon and orchestrated through Ollama. Its differentiation is not raw scale, but a carefully engineered combination of safety, prompt fidelity, latency, and composition quality for creative use cases like posters and character art. [proceedings.neurips](https://proceedings.neurips.cc/paper_files/paper/2024/file/8bea36ac39e11ebe49e9eddbd4b8bd3a-Paper-Conference.pdf)
+
+If you execute this PRD well, you will have a product that is practical, private, and strong enough to feel like a real local alternative for creative image generation on Mac. The best path is a distilled compact backbone, strict data curation, layered moderation, and a benchmark-first development cycle. [pmc.ncbi.nlm.nih](https://pmc.ncbi.nlm.nih.gov/articles/PMC12381170/)
+
+Would you like me to convert this into a professional PRD format with sections like scope, user stories, functional requirements, non-functional requirements, and milestones?
