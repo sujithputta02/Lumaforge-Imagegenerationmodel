@@ -1,5 +1,7 @@
 # 🌌 LumaForge: Spatial Image Generation & Fine-Tuning Engine
 
+[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A5%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/sujithputta/Lumaforge)
+
 LumaForge AuraGen is a state-of-the-art, local-first latent image generation, fine-tuning, and post-processing workstation optimized for Apple Silicon (MPS). It features a premium, glassmorphic **Spatial UI Web Playground** built with Next.js, Bun, and Tailwind, and a robust **AI Engine Backend** built with PyTorch, Diffusers, FastAPI, and Ollama.
 
 ---
