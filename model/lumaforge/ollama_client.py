@@ -101,10 +101,20 @@ class OllamaClient:
 
         return res.get("response", "").strip().strip('"')
 
-    def expand_prompt(self, prompt: str, mode: str = "general") -> dict:
+    def expand_prompt(self, prompt: str, mode: str = "general", category: str = None, subcategory: str = None) -> dict:
         """
         Expands a simple user prompt into a structured set of fields and a consolidated full prompt.
+        Supports category-based enhancements for specialized generation.
         """
+        # Import category prompts if category is specified
+        category_enhancement = ""
+        if category and subcategory:
+            try:
+                from lumaforge.category_prompts import get_category_enhancement
+                category_enhancement = get_category_enhancement(category, subcategory)
+            except ImportError:
+                category_enhancement = ""
+        
         prompt_template = (
             "You are a prompt engineering assistant for the 'LumaForge' text-to-image model. "
             "Expand the user prompt into a detailed, structured prompt suited for high-quality image generation. "
@@ -120,7 +130,8 @@ class OllamaClient:
             "- safety_constraints: Guidelines to keep output appropriate.\n\n"
             f"Apply optimization rules for target mode: {mode.upper()}.\n"
             "If mode is POSTER: you MUST include: 'title-safe negative space at top and bottom, minimalist clean background, layout optimized for movie poster typography composition'.\n"
-            "If mode is CHARACTER: emphasize detailed facial features, character sheets, action poses, and clean backgrounds.\n\n"
+            "If mode is CHARACTER: emphasize detailed facial features, character sheets, action poses, and clean backgrounds.\n"
+            f"{f'Apply category-specific enhancements: {category_enhancement}' if category_enhancement else ''}\n\n"
             "CRITICAL: Keep all field values extremely short and direct (1-3 words or brief phrases). "
             "Do NOT output nested dictionaries, lists, or key labels (like 'name:', 'keywords:') inside the JSON values. "
             "If the user prompt specifies any colors (e.g., 'red', 'blue', 'green', 'white'), you MUST explicitly preserve and reinforce those color descriptions in the 'subject' and 'style' fields.\n"
@@ -153,7 +164,7 @@ class OllamaClient:
             "subject": prompt,
             "action": "standing",
             "environment": "simple background",
-            "style": "cinematic movie poster" if mode == "poster" else "digital art character portrait",
+            "style": f"cinematic {category}" if category else ("cinematic movie poster" if mode == "poster" else "digital art character portrait"),
             "lighting": "dramatic cinematic lighting",
             "camera": "centered hero shot",
             "mood": "heroic",
@@ -231,6 +242,10 @@ class OllamaClient:
                 title_kw = f'bold typography movie title text "{title}", centered poster title layout, clean lettering'
                 if title.lower() not in expanded["subject"].lower() and title.lower() not in expanded["style"].lower():
                     expanded["subject"] = f'{expanded["subject"]}, featuring the {title_kw}'
+
+        # 5. Apply category enhancement if available
+        if category_enhancement:
+            expanded["style"] = f"{expanded['style']}{category_enhancement}"
 
         # Consolidate into full prompt
         parts = [
