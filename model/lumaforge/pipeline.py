@@ -108,29 +108,48 @@ class LumaForgePipeline:
             # Simulate processing time
             time.sleep(1.5)
         else:
-            # Elite quality enhancement - match ChatGPT/DALL-E 3 quality
+            # Elite accuracy & quality enhancement with weighted emphasis
             prompt_lower = prompt.lower()
             
-            # Logical & scientific accuracy framework
-            # Ensures objects follow real-world physics and natural composition
-            accuracy_keywords = [
-                "realistic physics", "logically composed", "scientifically accurate",
-                "natural perspective", "accurate proportions", "physically plausible"
-            ]
+            # Extract key subject (wizard, person, object, etc.) for emphasis
+            subject_keywords = {
+                "wizard": "(wizard:1.4)",
+                "person": "(person:1.3)",
+                "character": "(character:1.3)",
+                "man": "(man:1.3)",
+                "woman": "(woman:1.3)",
+                "portrait": "(portrait:1.3)",
+                "face": "(face:1.2)",
+                "dragon": "(dragon:1.3)",
+                "castle": "(castle:1.2)",
+                "spaceship": "(spaceship:1.2)",
+                "robot": "(robot:1.2)"
+            }
+            
+            # Add emphasis to primary subject
+            for subject, emphasis in subject_keywords.items():
+                if subject in prompt_lower:
+                    # Replace subject with emphasized version
+                    prompt = prompt.replace(subject, emphasis, 1)
+                    break
+            
+            # Accuracy & detail framework - PREPEND for higher priority
+            accuracy_prefix = (
+                "high detail, high quality, accurate, detailed, sharp, clear, well-defined, "
+                "correct anatomy, correct proportions, realistic rendering, "
+            )
             
             # Add photorealism & detail keywords if not present
             detail_keywords = ["photorealistic", "professional", "detailed", "sharp focus", "high-resolution", "8k"]
             has_quality_keyword = any(kw in prompt_lower for kw in detail_keywords)
-            has_accuracy = any(kw in prompt_lower for kw in accuracy_keywords)
-            
-            if not has_accuracy:
-                # Prepend accuracy requirements
-                prompt = f"{prompt}, scientifically accurate, realistic physics, natural perspective, logically composed"
             
             if not has_quality_keyword:
-                prompt = f"{prompt}, photorealistic rendering, professional photography, ultra-detailed, 8k resolution, sharp focus, cinematic lighting, award-winning quality"
+                quality_suffix = "photorealistic rendering, professional photography, ultra-detailed, 8k resolution, sharp focus, cinematic lighting, award-winning quality"
+                prompt = f"{accuracy_prefix}{prompt}, {quality_suffix}"
+            else:
+                prompt = f"{accuracy_prefix}{prompt}"
             
-            # Elite negative prompt - exclude all artifacts that ChatGPT images avoid
+            # Ultra-elite negative prompt - force subject inclusion & accuracy
             elite_neg = (
                 "blurry, blur, out of focus, low quality, low resolution, duplicate, bad anatomy, deformed, "
                 "distorted, mutated, extra limbs, missing limbs, malformed hands, bad hands, extra fingers, "
@@ -140,7 +159,9 @@ class LumaForgePipeline:
                 "watermark, text overlay, artificial, CGI, render, plastic, doll, toy, figure, statue, sculpture, "
                 "pixelated, pixelation, posterize, paint-by-numbers, cartoon, anime, cell-shaded, toon, comic, "
                 "illogical composition, floating objects, defying gravity, physically impossible, broken physics, "
-                "unnatural lighting, impossible perspective, unrealistic proportions, anatomically incorrect"
+                "unnatural lighting, impossible perspective, unrealistic proportions, anatomically incorrect, "
+                "missing subject, subject absent, no main character, empty scene, background only, "
+                "cropped face, cut off head, partial view, incomplete, truncated, cut off"
             )
             
             if not negative_prompt:
@@ -161,11 +182,11 @@ class LumaForgePipeline:
                 time.sleep(1.5)
             else:
                 try:
-                    # Use higher steps and guidance for better quality (30 steps, 10.0 guidance)
-                    optimized_steps = max(steps, 30)  # Minimum 30 steps for clarity
-                    optimized_guidance = max(guidance_scale, 10.0)  # Minimum 10.0 for detail adherence
+                    # Use even higher steps and guidance for MAXIMUM accuracy (40 steps, 12.0 guidance)
+                    optimized_steps = max(steps, 40)  # Minimum 40 steps for high accuracy
+                    optimized_guidance = max(guidance_scale, 12.0)  # Minimum 12.0 for strong prompt adherence
                     
-                    print(f"[LumaForgePipeline] Running elite inference (steps={optimized_steps}, guidance_scale={optimized_guidance}, seed={seed})")
+                    print(f"[LumaForgePipeline] Running accuracy-focused inference (steps={optimized_steps}, guidance_scale={optimized_guidance}, seed={seed})")
                     generator = torch.Generator(device=self.device).manual_seed(seed)
                     
                     # Use DPM++ scheduler for better quality
