@@ -13,34 +13,36 @@ class LumaForgePipeline:
         print(f"[LumaForgePipeline] Initialized pipeline with device: {self.device} (target: {model_id})")
 
     def load_model(self):
-        """Loads the Stable Diffusion pipeline into MPS memory."""
+        """Loads the Stable Diffusion pipeline into MPS memory with quality optimizations."""
         if self.is_loaded:
             return True
             
         print(f"[LumaForgePipeline] Loading diffusers model '{self.model_id}' onto {self.device}...")
-        print(f"[LumaForgePipeline] WARNING: Large model download (4GB+) may take 5-10 minutes on first run")
+        print(f"[LumaForgePipeline] Checking local cache at ~/.cache/huggingface/...")
         try:
             from diffusers import StableDiffusionPipeline
-            import signal
-            
-            # Set timeout for model download (10 minutes)
-            def timeout_handler(signum, frame):
-                raise TimeoutError("Model download timeout - exceeded 10 minutes")
+            import os
             
             # Use float32 to prevent NaN overflow issues on Apple Silicon MPS
             torch_dtype = torch.float32
             
-            print(f"[LumaForgePipeline] Downloading model from Hugging Face...")
+            # Set cache directory explicitly to ensure we use local cache
+            cache_dir = os.path.expanduser("~/.cache/huggingface/hub")
+            
+            print(f"[LumaForgePipeline] Loading from cache (local files only)...")
             self.pipe = StableDiffusionPipeline.from_pretrained(
                 self.model_id,
                 torch_dtype=torch_dtype,
                 use_safetensors=True,
                 safety_checker=None,
-                requires_safety_checker=False
+                requires_safety_checker=False,
+                cache_dir=cache_dir,
+                local_files_only=True  # CRITICAL: Use cache only, don't download
             )
+            print(f"[LumaForgePipeline] ✅ Model loaded from cache successfully")
             print(f"[LumaForgePipeline] Moving pipeline to {self.device}...")
             self.pipe.to(self.device)
-            print(f"[LumaForgePipeline] Pipeline successfully moved to {self.device}")
+            print(f"[LumaForgePipeline] ✅ Pipeline successfully moved to {self.device}")
             
             # Load fine-tuned weights if they exist and are a valid PyTorch state dict
             lora_path = "weights/lumaforge_lora.safetensors"
@@ -51,7 +53,7 @@ class LumaForgePipeline:
                         print(f"[LumaForgePipeline] Loading fine-tuned UNet weights from {lora_path}...")
                         state_dict = torch.load(lora_path, map_location=self.device)
                         self.pipe.unet.load_state_dict(state_dict)
-                        print("[LumaForgePipeline] Fine-tuned UNet weights loaded successfully.")
+                        print("[LumaForgePipeline] ✅ Fine-tuned UNet weights loaded successfully.")
                     else:
                         print(f"[LumaForgePipeline] Found demo/placeholder weights at {lora_path}. Skipping weight load.")
                 except Exception as e:
@@ -61,19 +63,14 @@ class LumaForgePipeline:
             if self.device == "mps":
                 print(f"[LumaForgePipeline] Enabling attention slicing for MPS memory optimization...")
                 self.pipe.enable_attention_slicing()
-                print(f"[LumaForgePipeline] Attention slicing enabled.")
+                print(f"[LumaForgePipeline] ✅ Attention slicing enabled.")
                 
             self.is_loaded = True
-            print("[LumaForgePipeline] Model successfully loaded and ready for inference.")
+            print("[LumaForgePipeline] ✅ Model ready for fast inference!")
             return True
-        except TimeoutError as e:
-            print(f"[LumaForgePipeline Error] Model loading timeout: {e}")
-            print(f"[LumaForgePipeline] Please use mock=True for faster testing")
-            self.is_loaded = False
-            return False
         except Exception as e:
-            print(f"[LumaForgePipeline Error] Failed to load model: {e}")
-            print(f"[LumaForgePipeline] Falling back to mock mode. To use real model, ensure model is downloaded and try again.")
+            print(f"[LumaForgePipeline Error] Failed to load model from cache: {e}")
+            print(f"[LumaForgePipeline] Model may not be cached. Download it first or use mock mode.")
             self.is_loaded = False
             return False
 
@@ -110,16 +107,31 @@ class LumaForgePipeline:
             # Simulate processing time
             time.sleep(1.5)
         else:
-            # Quality enhancement trigger words
-            if "high quality" not in prompt.lower() and "high-resolution" not in prompt.lower():
-                prompt = f"{prompt}, high-resolution, 8k, detailed, sharp focus"
-                
-            # Quality enhancement negative prompt filter
-            quality_neg = "blurry, blur, out of focus, low quality, low resolution, duplicate, bad anatomy, deformed, distorted"
+            # Elite quality enhancement - match ChatGPT/DALL-E 3 quality
+            prompt_lower = prompt.lower()
+            
+            # Add photorealism & detail keywords if not present
+            detail_keywords = ["photorealistic", "professional", "detailed", "sharp focus", "high-resolution", "8k"]
+            has_quality_keyword = any(kw in prompt_lower for kw in detail_keywords)
+            
+            if not has_quality_keyword:
+                prompt = f"{prompt}, photorealistic rendering, professional photography, ultra-detailed, 8k resolution, sharp focus, cinematic lighting, award-winning quality"
+            
+            # Elite negative prompt - exclude all artifacts that ChatGPT images avoid
+            elite_neg = (
+                "blurry, blur, out of focus, low quality, low resolution, duplicate, bad anatomy, deformed, "
+                "distorted, mutated, extra limbs, missing limbs, malformed hands, bad hands, extra fingers, "
+                "missing fingers, disfigured, poorly drawn, bad proportions, gross proportions, ugly, "
+                "poorly drawn face, bad face, frowny, asymmetrical face, mutation, mutated, "
+                "bad teeth, bad eyes, dead eyes, weird eyes, crossed eyes, multiple views, multiple people confused, "
+                "watermark, text overlay, artificial, CGI, render, plastic, doll, toy, figure, statue, sculpture, "
+                "pixelated, pixelation, posterize, paint-by-numbers, cartoon, anime, cell-shaded, toon, comic"
+            )
+            
             if not negative_prompt:
-                negative_prompt = quality_neg
+                negative_prompt = elite_neg
             else:
-                negative_prompt = f"{negative_prompt}, {quality_neg}"
+                negative_prompt = f"{negative_prompt}, {elite_neg}"
 
             # If a title is found in the prompt, suppress model text generation to avoid double/garbled lettering
             if titles:
@@ -134,20 +146,41 @@ class LumaForgePipeline:
                 time.sleep(1.5)
             else:
                 try:
-                    print(f"[LumaForgePipeline] Running inference (steps={steps}, guidance_scale={guidance_scale}, seed={seed})")
+                    # Use higher steps and guidance for better quality (30 steps, 10.0 guidance)
+                    optimized_steps = max(steps, 30)  # Minimum 30 steps for clarity
+                    optimized_guidance = max(guidance_scale, 10.0)  # Minimum 10.0 for detail adherence
+                    
+                    print(f"[LumaForgePipeline] Running elite inference (steps={optimized_steps}, guidance_scale={optimized_guidance}, seed={seed})")
                     generator = torch.Generator(device=self.device).manual_seed(seed)
-                    # Run diffusion
+                    
+                    # Use DPM++ scheduler for better quality
+                    from diffusers import DPMSolverMultistepScheduler
+                    self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(
+                        self.pipe.scheduler.config,
+                        algorithm_type="dpmsolver++"
+                    )
+                    
+                    # Run diffusion with optimized settings
                     output = self.pipe(
                         prompt=prompt,
                         negative_prompt=negative_prompt,
-                        num_inference_steps=steps,
-                        guidance_scale=guidance_scale,
+                        num_inference_steps=optimized_steps,
+                        guidance_scale=optimized_guidance,
                         width=width,
                         height=height,
                         generator=generator
                     )
                     image = output.images[0]
-                    print(f"[LumaForgePipeline] Inference completed successfully")
+                    
+                    # Post-processing: Enhance clarity and sharpness
+                    from PIL import ImageEnhance
+                    enhancer = ImageEnhance.Sharpness(image)
+                    image = enhancer.enhance(1.15)  # Slight sharpness boost
+                    
+                    contrast_enhancer = ImageEnhance.Contrast(image)
+                    image = contrast_enhancer.enhance(1.05)  # Slight contrast boost
+                    
+                    print(f"[LumaForgePipeline] Elite inference completed with post-processing")
                 except Exception as e:
                     print(f"[LumaForgePipeline Error] Inference failed: {e}. Falling back to mock image.")
                     image = self._generate_mock_image(prompt, width, height, aspect_ratio, seed)

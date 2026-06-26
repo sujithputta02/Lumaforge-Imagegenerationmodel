@@ -136,8 +136,8 @@ export default function LumaForgePlayground() {
   const [prompt, setPrompt] = useState('');
   const [mode, setMode] = useState<'general' | 'poster' | 'character' | string>('general');
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16' | '4:3' | '3:4'>('1:1');
-  const [steps, setSteps] = useState(20);
-  const [cfg, setCfg] = useState(7.5);
+  const [steps, setSteps] = useState(30); // Increased from 20 for better quality & clarity
+  const [cfg, setCfg] = useState(10.0); // Increased from 7.5 for better prompt adherence
   const [negativePrompt, setNegativePrompt] = useState('');
   const [seed, setSeed] = useState<number | string>(-1);
   const [mock, setMock] = useState(true); // Mock mode enabled by default for fast testing
