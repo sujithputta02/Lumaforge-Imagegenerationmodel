@@ -1,539 +1,150 @@
 """
-Optimized prompt templates for 16 specialized generation categories.
-Each category has subcategories with specific styling and quality hints.
+LumaForge Category Prompts - 16 Specialized Categories with 110+ Templates
+v1.1 Release - Advanced Image Generation Categories and Enhancements
 """
 
 CATEGORY_PROMPTS = {
-    # 🎨 CREATIVE ART (7 subcategories)
     "creative_art": {
-        "label": "Creative Art",
-        "icon": "🎨",
-        "subcategories": {
-            "digital": {
-                "name": "Digital Art",
-                "enhancement": ", digital painting, vibrant colors, modern art style, high detail, professional digital artist work"
-            },
-            "concept": {
-                "name": "Concept Art",
-                "enhancement": ", concept art, cinematic lighting, dramatic composition, professional concept artist, detailed environment design"
-            },
-            "fantasy": {
-                "name": "Fantasy Art",
-                "enhancement": ", fantasy art, magical effects, mystical atmosphere, epic landscape, intricate details, vibrant magical colors"
-            },
-            "scifi": {
-                "name": "Sci-Fi Art",
-                "enhancement": ", sci-fi art, futuristic design, neon colors, technological aesthetic, advanced civilization, detailed mechanics"
-            },
-            "surreal": {
-                "name": "Surreal Art",
-                "enhancement": ", surreal art, dreamlike atmosphere, impossible geometry, hyper-realistic detail, mysterious mood, artistic vision"
-            },
-            "abstract": {
-                "name": "Abstract Art",
-                "enhancement": ", abstract art, geometric shapes, bold colors, modern artistic expression, creative composition, artistic vision"
-            },
-            "matte": {
-                "name": "Matte Painting",
-                "enhancement": ", matte painting, cinematic environment, detailed landscape, atmospheric perspective, professional studio quality"
-            }
-        }
+        "Digital Art": "digital art, high-resolution concept art, professional digital illustration, trending on artstation, vibrant colors, detailed brushwork, cinematic lighting",
+        "Concept Art": "concept art, detailed environment design, professional concept artist work, cinematic rendering, atmospheric lighting, trending on artstation",
+        "Fantasy": "fantasy illustration, magical atmosphere, detailed magical creatures, enchanted landscapes, mystical lighting, professional fantasy art",
+        "Sci-Fi": "sci-fi concept art, futuristic technology, cyberpunk aesthetics, high-tech environments, neon lighting, dystopian atmosphere",
+        "Surreal": "surreal art, dreamlike atmosphere, impossible geometry, floating elements, ethereal lighting, abstract surrealism, professional digital art",
+        "Abstract": "abstract art, geometric shapes, color field painting, contemporary art, professional abstract painting, modern art gallery",
+        "Matte Painting": "matte painting, landscape artwork, digital matte, cinematic environment, professional concept art, detailed background painting"
     },
-    
-    # 👤 CHARACTER GENERATION (8 subcategories)
-    "character": {
-        "label": "Character Generation",
-        "icon": "👤",
-        "subcategories": {
-            "anime": {
-                "name": "Anime Characters",
-                "enhancement": ", anime character, cel-shaded style, expressive eyes, vibrant colors, anime key visual, high quality anime art"
-            },
-            "realistic": {
-                "name": "Realistic Humans",
-                "enhancement": ", photorealistic character portrait, realistic skin texture, natural lighting, professional photography, detailed facial features"
-            },
-            "cartoon": {
-                "name": "Cartoon Characters",
-                "enhancement": ", cartoon character, fun art style, bright colors, exaggerated features, cheerful expression, children's book illustration"
-            },
-            "game": {
-                "name": "Game Characters",
-                "enhancement": ", game character design, RPG style, detailed armor/clothing, video game aesthetic, character sheet quality"
-            },
-            "superhero": {
-                "name": "Superheroes",
-                "enhancement": ", superhero character, muscular physique, epic pose, dramatic lighting, cinematic superhero movie style, iconic costume"
-            },
-            "medieval": {
-                "name": "Medieval Characters",
-                "enhancement": ", medieval character, historical armor, medieval clothing, fantasy setting, epic fantasy art style"
-            },
-            "cyberpunk": {
-                "name": "Cyberpunk Characters",
-                "enhancement": ", cyberpunk character, neon aesthetic, futuristic outfit, high-tech augmentations, moody lighting, dystopian future"
-            },
-            "pixel": {
-                "name": "Pixel Art Characters",
-                "enhancement": ", pixel art character, retro video game style, 8-bit or 16-bit aesthetic, limited color palette, nostalgic gaming"
-            }
-        }
+    "characters": {
+        "Anime": "anime character, beautiful anime girl, anime art style, high quality anime, trending anime, detailed eyes, professional anime illustration",
+        "Realistic": "realistic character portrait, photorealistic digital art, realistic human face, professional portrait painting, detailed facial features",
+        "Cartoon": "cartoon character, professional cartoon illustration, vibrant cartoon style, fun character design, digital cartoon art",
+        "Game Character": "video game character, game art style, character design for RPG, game character concept art, professional game asset",
+        "Superhero": "superhero character, superhero concept art, dynamic pose, comic book style, professional superhero illustration",
+        "Medieval": "medieval character, fantasy warrior, historical character, medieval armor, professional fantasy character design",
+        "Cyberpunk": "cyberpunk character, sci-fi character design, futuristic outfit, neon aesthetic, cyberpunk fashion, detailed digital art",
+        "Pixel Art": "pixel art character, retro gaming style, 8-bit art, pixel perfect, professional pixel art"
     },
-    
-    # 🌄 LANDSCAPES & NATURE (8 subcategories)
-    "landscape": {
-        "label": "Landscapes & Nature",
-        "icon": "🌄",
-        "subcategories": {
-            "mountains": {
-                "name": "Mountains",
-                "enhancement": ", majestic mountain landscape, dramatic peaks, scenic vista, golden hour lighting, photorealistic nature photography"
-            },
-            "forests": {
-                "name": "Forests",
-                "enhancement": ", enchanted forest, lush greenery, sunlight through trees, mystical atmosphere, detailed foliage, serene nature"
-            },
-            "beaches": {
-                "name": "Beaches",
-                "enhancement": ", beautiful beach landscape, sandy shore, ocean waves, sunset or sunrise, tropical paradise, photorealistic"
-            },
-            "waterfalls": {
-                "name": "Waterfalls",
-                "enhancement": ", majestic waterfall, flowing water, mist effect, lush surroundings, dramatic landscape, nature photography"
-            },
-            "desert": {
-                "name": "Desert Scenes",
-                "enhancement": ", desert landscape, golden sand dunes, dramatic sky, vast terrain, heat shimmer, cinematic desert"
-            },
-            "snow": {
-                "name": "Snow Landscapes",
-                "enhancement": ", snowy landscape, winter wonderland, frosted trees, pristine snow, cold blue lighting, peaceful winter scene"
-            },
-            "space": {
-                "name": "Space Scenes",
-                "enhancement": ", space landscape, distant planets, nebula, stars, cosmic atmosphere, sci-fi space environment, detailed space art"
-            },
-            "underwater": {
-                "name": "Underwater Worlds",
-                "enhancement": ", underwater scene, marine life, coral reef, bioluminescence, deep ocean, atmospheric underwater lighting"
-            }
-        }
+    "landscapes": {
+        "Mountains": "mountain landscape, snow-capped peaks, majestic mountains, alpine scenery, landscape photography, cinematic lighting",
+        "Forests": "forest landscape, dense woodland, enchanted forest, old growth trees, forest atmosphere, detailed foliage, professional landscape",
+        "Beaches": "beach landscape, ocean view, tropical beach, sunset beach, sandy shores, waves, professional landscape photography",
+        "Waterfalls": "waterfall landscape, cascading water, powerful waterfall, misty atmosphere, nature landscape, flowing water effects",
+        "Desert": "desert landscape, sand dunes, arid environment, desert sunset, vast landscape, detailed sand textures",
+        "Snow Landscape": "snow landscape, winter scenery, frozen landscape, snow-covered mountains, winter atmosphere, icy terrain",
+        "Space": "space landscape, cosmic environment, nebula, stars, planetary landscape, astronomy, space art, sci-fi environment",
+        "Underwater": "underwater landscape, ocean depths, coral reef, marine life, underwater scenery, bioluminescent creatures"
     },
-    
-    # 🏙️ ARCHITECTURE (8 subcategories)
     "architecture": {
-        "label": "Architecture",
-        "icon": "🏙️",
-        "subcategories": {
-            "modern": {
-                "name": "Modern Buildings",
-                "enhancement": ", modern architecture, sleek design, contemporary building, glass and steel, minimalist aesthetic, professional architectural render"
-            },
-            "futuristic": {
-                "name": "Futuristic Cities",
-                "enhancement": ", futuristic city, advanced architecture, flying vehicles, neon lights, cyberpunk cityscape, sci-fi metropolis"
-            },
-            "ancient": {
-                "name": "Ancient Temples",
-                "enhancement": ", ancient temple architecture, historical building, intricate carvings, grand structure, archaeological site, mystical atmosphere"
-            },
-            "interior": {
-                "name": "Interior Design",
-                "enhancement": ", interior design, luxurious room, modern furnishings, professional interior styling, architectural photography, elegant space"
-            },
-            "luxury": {
-                "name": "Luxury Homes",
-                "enhancement": ", luxury mansion, high-end real estate, elegant architecture, premium materials, scenic views, architectural photography"
-            },
-            "office": {
-                "name": "Office Spaces",
-                "enhancement": ", modern office space, professional environment, contemporary design, productive workspace, architectural render"
-            },
-            "smart": {
-                "name": "Smart Homes",
-                "enhancement": ", smart home technology, futuristic interior, automated systems visible, modern tech-integrated living space"
-            },
-            "castle": {
-                "name": "Fantasy Castles",
-                "enhancement": ", fantasy castle architecture, magical fortress, ornate design, epic scale, fairytale aesthetic, detailed stonework"
-            }
-        }
+        "Modern": "modern architecture, contemporary building design, glass and steel, sleek design, modern office building, urban architecture",
+        "Futuristic": "futuristic architecture, sci-fi building, advanced technology, floating structures, neon lighting, cyberpunk architecture",
+        "Ancient": "ancient architecture, historical building, classical design, temple, ruins, historical landmark, ancient civilization",
+        "Interior Design": "interior design, modern room, architectural interior, professional interior, detailed room design, furniture arrangement",
+        "Luxury Architecture": "luxury architecture, high-end building, elegant design, premium materials, sophisticated architecture, luxury real estate",
+        "Office Space": "office architecture, modern office space, corporate building, professional workspace, sleek office design",
+        "Smart Building": "smart building, intelligent architecture, technology integrated building, futuristic office, connected spaces",
+        "Castles": "castle architecture, medieval fortress, grand castle, fantasy castle, stone architecture, imposing structure"
     },
-    
-    # 🚗 VEHICLES (7 subcategories)
     "vehicles": {
-        "label": "Vehicles",
-        "icon": "🚗",
-        "subcategories": {
-            "sports": {
-                "name": "Sports Cars",
-                "enhancement": ", sports car, high-performance vehicle, sleek design, detailed engineering, professional product photography"
-            },
-            "luxury": {
-                "name": "Luxury Cars",
-                "enhancement": ", luxury car, premium vehicle, elegant design, prestige automobile, professional photography, detailed finish"
-            },
-            "motorcycle": {
-                "name": "Motorcycles",
-                "enhancement": ", motorcycle, detailed bike design, high-speed aesthetic, professional product shot, shiny chrome details"
-            },
-            "aircraft": {
-                "name": "Aircraft",
-                "enhancement": ", aircraft design, detailed airplane, aerial vehicle, professional technical render, engineering detail"
-            },
-            "spacecraft": {
-                "name": "Spacecraft",
-                "enhancement": ", spacecraft design, sci-fi spaceship, futuristic vehicle, detailed exterior, cosmic background, space vessel"
-            },
-            "ships": {
-                "name": "Ships",
-                "enhancement": ", ship design, maritime vessel, detailed naval architecture, ocean setting, realistic water"
-            },
-            "military": {
-                "name": "Military Vehicles",
-                "enhancement": ", military vehicle, tactical design, combat equipment, detailed mechanical engineering, professional render"
-            }
-        }
+        "Sports Cars": "sports car, high-performance vehicle, sleek car design, racing car, luxury sports car, detailed car model, automotive photography",
+        "Luxury Vehicles": "luxury car, premium automobile, elegant vehicle design, high-end car, luxury sedan, professional car photography",
+        "Motorcycles": "motorcycle, sport bike, detailed bike design, motorcycle design, professional motorcycle photography, sleek two-wheeler",
+        "Aircraft": "aircraft, airplane design, flying plane, jet aircraft, commercial airplane, professional aircraft illustration",
+        "Spacecraft": "spacecraft, alien ship, futuristic spacecraft, space vehicle, sci-fi spaceship, detailed space vehicle design",
+        "Ships": "ship, ocean vessel, detailed ship design, maritime vessel, sailing ship, naval architecture, professional ship illustration",
+        "Military Vehicles": "military vehicle, combat vehicle, tank, armored vehicle, military technology, warfare equipment"
     },
-    
-    # 🛍️ PRODUCT DESIGN (8 subcategories)
     "products": {
-        "label": "Product Design",
-        "icon": "🛍️",
-        "subcategories": {
-            "mockups": {
-                "name": "Product Mockups",
-                "enhancement": ", professional product mockup, clean white background, studio lighting, detailed product, commercial photography"
-            },
-            "furniture": {
-                "name": "Furniture",
-                "enhancement": ", furniture design, interior aesthetic, detailed craftsmanship, professional product photography, beautiful material"
-            },
-            "shoes": {
-                "name": "Shoes",
-                "enhancement": ", shoe design, detailed footwear, professional product shot, clean background, fashion product photography"
-            },
-            "watches": {
-                "name": "Watches",
-                "enhancement": ", watch design, luxury timepiece, detailed craftsmanship, professional close-up photography, shiny metallic finish"
-            },
-            "electronics": {
-                "name": "Electronics",
-                "enhancement": ", electronic device, tech product, detailed design, professional product render, clean aesthetic"
-            },
-            "perfume": {
-                "name": "Perfume Bottles",
-                "enhancement": ", perfume bottle, luxury fragrance, elegant glass design, professional product photography, reflective surface"
-            },
-            "packaging": {
-                "name": "Packaging Design",
-                "enhancement": ", package design, product packaging, professional layout, eye-catching graphics, retail ready"
-            },
-            "cosmetics": {
-                "name": "Cosmetic Products",
-                "enhancement": ", cosmetic product, beauty packaging, luxury cosmetics, professional product photography, attractive presentation"
-            }
-        }
+        "Product Mockups": "product mockup, professional product photography, product showcase, clean background, detailed product shot",
+        "Furniture": "furniture design, modern furniture, detailed furniture piece, interior furniture, professional furniture photography",
+        "Shoes": "shoe design, sneaker design, professional shoe photography, detailed footwear, stylish shoes, product photography",
+        "Watches": "watch design, luxury watch, detailed timepiece, watch product shot, elegant watch design, professional photography",
+        "Electronics": "electronic device, tech product, professional electronics photography, detailed gadget, technology product",
+        "Perfume": "perfume bottle design, fragrance product, luxury perfume, elegant bottle design, professional product photography",
+        "Packaging Design": "product packaging, package design, box design, professional packaging, retail packaging, detailed box",
+        "Cosmetics": "cosmetics product, beauty product, makeup packaging, luxury cosmetics, professional beauty photography"
     },
-    
-    # 📢 MARKETING & BRANDING (8 subcategories)
     "marketing": {
-        "label": "Marketing & Branding",
-        "icon": "📢",
-        "subcategories": {
-            "posters": {
-                "name": "Posters",
-                "enhancement": ", movie poster design, bold typography, eye-catching layout, professional marketing material, title-safe composition"
-            },
-            "flyers": {
-                "name": "Flyers",
-                "enhancement": ", flyer design, marketing material, professional layout, striking visuals, promotional design"
-            },
-            "social": {
-                "name": "Social Media Creatives",
-                "enhancement": ", social media content, engaging visuals, trending aesthetic, digital marketing, eye-catching design"
-            },
-            "thumbnails": {
-                "name": "YouTube Thumbnails",
-                "enhancement": ", YouTube thumbnail design, clickable layout, bold text, vibrant colors, high contrast, engagement optimized"
-            },
-            "bookcovers": {
-                "name": "Book Covers",
-                "enhancement": ", book cover design, professional typography, compelling visuals, literary aesthetic, commercial book cover"
-            },
-            "magazines": {
-                "name": "Magazine Covers",
-                "enhancement": ", magazine cover design, professional layout, striking imagery, editorial aesthetic, publishing quality"
-            },
-            "banners": {
-                "name": "Event Banners",
-                "enhancement": ", event banner design, promotional graphics, bold composition, marketing material, professional event branding"
-            },
-            "ads": {
-                "name": "Business Ads",
-                "enhancement": ", advertisement design, promotional content, marketing material, professional advertising, compelling visuals"
-            }
-        }
+        "Posters": "movie poster, professional poster design, eye-catching poster, marketing poster, detailed poster art",
+        "Flyers": "flyer design, promotional flyer, professional flyer, marketing flyer, eye-catching design",
+        "Social Media": "social media content, Instagram post, social media graphic, eye-catching design, digital marketing content",
+        "Thumbnails": "YouTube thumbnail, video thumbnail, eye-catching thumbnail, professional thumbnail design",
+        "Book Covers": "book cover design, professional book cover, eye-catching cover, literary design, detailed book art",
+        "Magazine Covers": "magazine cover, professional magazine design, eye-catching cover, editorial design, glossy magazine",
+        "Banners": "banner design, web banner, marketing banner, eye-catching banner, professional graphic design",
+        "Advertisements": "advertisement, promotional ad, marketing advertisement, professional ad design, eye-catching advertisement"
     },
-    
-    # 🍔 FOOD (7 subcategories)
     "food": {
-        "label": "Food",
-        "icon": "🍔",
-        "subcategories": {
-            "dishes": {
-                "name": "Restaurant Dishes",
-                "enhancement": ", restaurant dish, gourmet food photography, appetizing presentation, professional food styling, culinary art"
-            },
-            "desserts": {
-                "name": "Desserts",
-                "enhancement": ", dessert photography, delicious cake or pastry, mouth-watering presentation, professional food styling, appetizing colors"
-            },
-            "beverages": {
-                "name": "Beverages",
-                "enhancement": ", beverage photography, refreshing drink, professional product shot, condensation on glass, appetizing presentation"
-            },
-            "cakes": {
-                "name": "Cakes",
-                "enhancement": ", cake design, decorated cake, professional bakery photography, tempting presentation, detailed frosting"
-            },
-            "fastfood": {
-                "name": "Fast Food",
-                "enhancement": ", fast food photography, appetizing burger or pizza, professional food styling, commercial food photography"
-            },
-            "gourmet": {
-                "name": "Gourmet Meals",
-                "enhancement": ", gourmet cuisine, fine dining presentation, professional food photography, exquisite plating, culinary masterpiece"
-            },
-            "recipes": {
-                "name": "Recipe Images",
-                "enhancement": ", recipe photography, finished dish, professional food styling, cooking ingredient presentation, appetizing composition"
-            }
-        }
+        "Dishes": "food photography, professional dish photo, mouth-watering food, detailed food shot, restaurant quality food",
+        "Desserts": "dessert photography, beautiful dessert, cake design, pastry design, professional food photography",
+        "Beverages": "beverage photography, drink photography, professional drink shot, refreshing beverage, detailed drink",
+        "Cakes": "cake design, professional cake, detailed cake decoration, beautiful cake, pastry art, intricate cake design",
+        "Fast Food": "fast food, burger, pizza, professional food photography, appetizing fast food, detailed food shot",
+        "Gourmet Cuisine": "gourmet food, fine dining, professional culinary photography, upscale food, exquisite plating",
+        "Recipes": "food recipe photo, cooking process, food preparation, professional cooking photography, detailed ingredients"
     },
-    
-    # 👕 FASHION (7 subcategories)
     "fashion": {
-        "label": "Fashion",
-        "icon": "👕",
-        "subcategories": {
-            "clothing": {
-                "name": "Clothing",
-                "enhancement": ", fashion clothing, apparel design, professional fashion photography, clean background, detailed fabric texture"
-            },
-            "dresses": {
-                "name": "Dresses",
-                "enhancement": ", dress design, fashion garment, elegant styling, professional runway photography, detailed fabric and design"
-            },
-            "jackets": {
-                "name": "Jackets",
-                "enhancement": ", jacket design, outerwear fashion, detailed styling, professional product photography, quality fabric showcase"
-            },
-            "sneakers": {
-                "name": "Sneakers",
-                "enhancement": ", sneaker design, athletic footwear, detailed shoe design, professional product shot, fashion footwear"
-            },
-            "jewelry": {
-                "name": "Jewelry",
-                "enhancement": ", jewelry design, luxury accessories, detailed precious metal work, professional jewelry photography, shiny finish"
-            },
-            "accessories": {
-                "name": "Accessories",
-                "enhancement": ", fashion accessories, detailed design, professional product photography, clean aesthetic, luxury presentation"
-            },
-            "runway": {
-                "name": "Runway Concepts",
-                "enhancement": ", runway fashion show, model on catwalk, fashion design, professional photography, editorial fashion"
-            }
-        }
+        "Clothing": "fashion clothing, garment design, professional clothing photography, stylish outfit, detailed clothing",
+        "Dresses": "dress design, fashion dress, beautiful dress, detailed dress, professional fashion photography, elegant gown",
+        "Jackets": "jacket design, fashionable jacket, detailed jacket, professional jacket photography, stylish outerwear",
+        "Sneakers": "sneaker design, shoe design, fashion sneakers, detailed footwear, professional shoe photography, stylish sneakers",
+        "Jewelry": "jewelry design, elegant jewelry, luxury jewelry, detailed jewelry, professional jewelry photography",
+        "Accessories": "fashion accessories, stylish accessories, detailed accessory design, professional accessories photography",
+        "Runway": "fashion runway, model on runway, fashion show, professional fashion photography, haute couture, detailed clothing"
     },
-    
-    # 🎮 GAMING (7 subcategories)
     "gaming": {
-        "label": "Gaming Assets",
-        "icon": "🎮",
-        "subcategories": {
-            "icons": {
-                "name": "Game Icons",
-                "enhancement": ", game icon design, simple vector art, clear symbolic design, gaming aesthetic, professional icon set"
-            },
-            "ui": {
-                "name": "UI Assets",
-                "enhancement": ", game UI design, user interface elements, gaming aesthetic, clean design, professional game art"
-            },
-            "backgrounds": {
-                "name": "Backgrounds",
-                "enhancement": ", game background art, environment design, detailed scenery, gaming aesthetic, layered parallax background"
-            },
-            "npcs": {
-                "name": "NPC Characters",
-                "enhancement": ", game NPC character design, non-player character, gaming art style, detailed character sprite, game asset"
-            },
-            "weapons": {
-                "name": "Weapons",
-                "enhancement": ", game weapon design, fantasy or sci-fi weapon, detailed design, gaming aesthetic, professional game asset"
-            },
-            "effects": {
-                "name": "Magic Effects",
-                "enhancement": ", magical effect, spell animation frame, visual effect, particle effects, glowing energy, game FX art"
-            },
-            "inventory": {
-                "name": "Inventory Items",
-                "enhancement": ", game inventory item, loot design, detailed item sprite, gaming aesthetic, professional game asset"
-            }
-        }
+        "Game Icons": "game icon, professional game icon design, detailed icon, game UI element, pixel perfect icon",
+        "Game UI": "game user interface, professional UI design, detailed UI elements, game interface, modern game UI",
+        "Game Backgrounds": "game background, detailed environment art, game scenery, professional background design, atmospheric game art",
+        "NPCs": "game NPC character, detailed character design, game character art, character concept art, professional game character",
+        "Game Weapons": "game weapon, detailed weapon design, fantasy weapon, game weapon asset, professional weapon design",
+        "Visual Effects": "game visual effects, particle effects, spell effects, professional VFX design, detailed effects",
+        "Game Inventory": "game inventory, RPG inventory, detailed inventory items, game assets, professional item design"
     },
-    
-    # 🐶 ANIMALS (8 subcategories)
     "animals": {
-        "label": "Animals",
-        "icon": "🐶",
-        "subcategories": {
-            "pets": {
-                "name": "Pets",
-                "enhancement": ", pet portrait, animal photography, cute expression, professional photography, detailed fur texture"
-            },
-            "wildlife": {
-                "name": "Wildlife",
-                "enhancement": ", wildlife photography, wild animal in natural habitat, detailed fur, professional nature photography"
-            },
-            "birds": {
-                "name": "Birds",
-                "enhancement": ", bird illustration, detailed bird species, feather detail, nature photography, beautiful plumage"
-            },
-            "marine": {
-                "name": "Marine Animals",
-                "enhancement": ", marine creature, underwater animal, ocean life, detailed scales or skin, underwater photography"
-            },
-            "fantasy": {
-                "name": "Fantasy Creatures",
-                "enhancement": ", fantasy creature design, mythical beast, imaginative design, detailed creature art, fantastical illustration"
-            },
-            "dragons": {
-                "name": "Dragons",
-                "enhancement": ", dragon design, detailed dragon illustration, scales and wings, fantasy art, mythical creature"
-            },
-            "mythical": {
-                "name": "Mythical Beasts",
-                "enhancement": ", mythical creature, legendary beast, fantasy illustration, detailed design, epic creature art"
-            }
-        }
+        "Pets": "pet photography, cute pet, detailed animal portrait, professional pet photo, adorable animal",
+        "Wildlife": "wildlife photography, wild animal, detailed wildlife, nature photography, professional wildlife shot",
+        "Birds": "bird illustration, detailed bird design, bird art, ornithology art, professional bird illustration",
+        "Marine Life": "marine animal, ocean creature, underwater animal, fish, detailed sea creature, professional marine art",
+        "Fantasy Animals": "fantasy creature, magical animal, fantastical beast, detailed creature design, professional fantasy art",
+        "Dragons": "dragon illustration, detailed dragon design, dragon art, fantasy dragon, professional dragon artwork",
+        "Mythical Creatures": "mythical creature, legendary beast, fantasy creature, detailed mythical being, professional creature design",
+        "Endangered Species": "endangered animal, conservation photography, rare animal, detailed wildlife, nature documentary style"
     },
-    
-    # 🎉 EVENTS (5 subcategories)
     "events": {
-        "label": "Events",
-        "icon": "🎉",
-        "subcategories": {
-            "weddings": {
-                "name": "Wedding Invitations",
-                "enhancement": ", wedding invitation design, elegant aesthetic, romantic colors, professional layout, luxury card design"
-            },
-            "birthdays": {
-                "name": "Birthday Posters",
-                "enhancement": ", birthday poster design, celebratory aesthetic, vibrant colors, fun typography, party celebration design"
-            },
-            "festivals": {
-                "name": "Festival Artwork",
-                "enhancement": ", festival art, celebration design, colorful aesthetic, event marketing material, festive atmosphere"
-            },
-            "holidays": {
-                "name": "Holiday Cards",
-                "enhancement": ", holiday card design, seasonal aesthetic, festive colors, professional greeting card, warm holiday feel"
-            },
-            "parties": {
-                "name": "Party Decorations",
-                "enhancement": ", party decoration design, celebration aesthetic, colorful graphics, festive elements, event planning design"
-            }
-        }
+        "Weddings": "wedding photography, bride and groom, wedding ceremony, detailed wedding scene, professional wedding photo",
+        "Birthdays": "birthday celebration, birthday party, festive atmosphere, celebration scene, detailed party design",
+        "Festivals": "festival scene, cultural festival, festive gathering, celebration, detailed festival artwork",
+        "Holidays": "holiday celebration, festive holiday scene, holiday atmosphere, detailed holiday design",
+        "Parties": "party scene, celebration event, detailed party setting, festive gathering, professional event photography"
     },
-    
-    # 🏢 BUSINESS (5 subcategories)
     "business": {
-        "label": "Business",
-        "icon": "🏢",
-        "subcategories": {
-            "infographics": {
-                "name": "Infographics",
-                "enhancement": ", infographic design, data visualization, clean layout, professional business graphic, informative design"
-            },
-            "presentations": {
-                "name": "Presentation Graphics",
-                "enhancement": ", presentation slide design, business graphics, professional layout, corporate aesthetic, educational visual"
-            },
-            "dashboards": {
-                "name": "Dashboard Illustrations",
-                "enhancement": ", dashboard design, data visualization interface, modern UI, analytics display, professional business software"
-            },
-            "banners": {
-                "name": "Corporate Banners",
-                "enhancement": ", corporate banner design, business marketing, professional layout, company branding, promotional material"
-            },
-            "branding": {
-                "name": "Startup Branding",
-                "enhancement": ", startup branding, logo design, brand identity, modern aesthetic, professional corporate identity"
-            }
-        }
+        "Infographics": "infographic design, professional infographic, data visualization, detailed infographic, modern design",
+        "Presentations": "presentation design, slide design, professional presentation, detailed design elements, corporate design",
+        "Dashboards": "dashboard design, data dashboard, professional UI design, detailed dashboard layout, modern interface",
+        "Banners": "business banner, corporate banner, professional banner design, detailed business graphics, marketing banner",
+        "Branding": "brand design, company branding, professional branding, detailed brand identity, corporate logo design"
     },
-    
-    # 📚 EDUCATION (5 subcategories)
     "education": {
-        "label": "Education",
-        "icon": "📚",
-        "subcategories": {
-            "scientific": {
-                "name": "Scientific Illustrations",
-                "enhancement": ", scientific illustration, detailed diagram, educational visual, anatomical accuracy, professional scientific art"
-            },
-            "biology": {
-                "name": "Biology Diagrams",
-                "enhancement": ", biology diagram, cell illustration, biological system, educational scientific visual, detailed anatomy"
-            },
-            "history": {
-                "name": "Historical Art",
-                "enhancement": ", historical illustration, period-accurate design, educational historical visual, museum quality art"
-            },
-            "geography": {
-                "name": "Geography Maps",
-                "enhancement": ", geographic map, cartographic design, detailed terrain, educational geography visual, atlas quality"
-            },
-            "medical": {
-                "name": "Medical Illustrations",
-                "enhancement": ", medical illustration, anatomical accuracy, educational healthcare visual, professional medical diagram"
-            }
-        }
+        "Scientific": "scientific illustration, detailed scientific drawing, educational diagram, professional scientific art, accurate representation",
+        "Biology": "biological illustration, detailed biology diagram, educational biology, professional scientific illustration, anatomical accuracy",
+        "History": "historical illustration, detailed historical scene, educational history art, period-accurate design, professional historical art",
+        "Geography": "geographical illustration, map design, detailed geography art, educational geography, professional cartography",
+        "Medical": "medical illustration, detailed medical diagram, anatomical illustration, professional medical art, scientific accuracy"
     }
 }
 
-def get_category_enhancement(category: str, subcategory: str = None) -> str:
-    """
-    Get prompt enhancement for a specific category and optional subcategory.
-    
-    Args:
-        category: Category name (e.g., 'creative_art', 'character')
-        subcategory: Optional subcategory name
-    
-    Returns:
-        Enhancement prompt string
-    """
-    if category not in CATEGORY_PROMPTS:
-        return ""
-    
-    cat_data = CATEGORY_PROMPTS[category]
-    
-    if not subcategory or subcategory not in cat_data["subcategories"]:
-        # Return first subcategory enhancement as default
-        first_sub = list(cat_data["subcategories"].values())[0]
-        return first_sub["enhancement"]
-    
-    return cat_data["subcategories"][subcategory]["enhancement"]
+def get_category_prompts(category: str, subcategory: str) -> str:
+    """Get prompt template for a specific category and subcategory."""
+    if category in CATEGORY_PROMPTS:
+        if subcategory in CATEGORY_PROMPTS[category]:
+            return CATEGORY_PROMPTS[category][subcategory]
+    return ""
 
-def get_all_categories() -> dict:
-    """Return all available categories with their subcategories."""
-    return {k: v["label"] for k, v in CATEGORY_PROMPTS.items()}
+def get_all_categories() -> list:
+    """Get list of all available categories."""
+    return list(CATEGORY_PROMPTS.keys())
 
-def get_subcategories(category: str) -> dict:
-    """Get all subcategories for a category."""
-    if category not in CATEGORY_PROMPTS:
-        return {}
-    return {k: v["name"] for k, v in CATEGORY_PROMPTS[category]["subcategories"].items()}
+def get_subcategories(category: str) -> list:
+    """Get list of subcategories for a specific category."""
+    if category in CATEGORY_PROMPTS:
+        return list(CATEGORY_PROMPTS[category].keys())
+    return []

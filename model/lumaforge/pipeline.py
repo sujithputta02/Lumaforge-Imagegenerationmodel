@@ -3,25 +3,14 @@ import time
 import random
 import torch
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageEnhance
-from lumaforge.image_enhancer import ImageEnhancer
 
 class LumaForgePipeline:
-    def __init__(self, model_id="stable-diffusion-v1-5/stable-diffusion-v1-5", device="mps", use_sdxl=False):
+    def __init__(self, model_id="stable-diffusion-v1-5/stable-diffusion-v1-5", device="mps"):
         self.model_id = model_id
         self.device = device if torch.backends.mps.is_available() and device == "mps" else "cpu"
         self.pipe = None
         self.is_loaded = False
-        self.use_sdxl = use_sdxl
-        self.image_enhancer = ImageEnhancer(device=self.device)  # Initialize image enhancer
-        
-        # Use SDXL if requested for higher quality
-        if use_sdxl:
-            self.model_id = "stabilityai/stable-diffusion-xl-base-1.0"
-            self.model_type = "sdxl"
-        else:
-            self.model_type = "sd-v1.5"
-        
-        print(f"[LumaForgePipeline] Initialized {self.model_type} pipeline with device: {self.device} (target: {self.model_id})")
+        print(f"[LumaForgePipeline] Initialized pipeline with device: {self.device} (target: {model_id})")
 
     def load_model(self):
         """Loads the Stable Diffusion pipeline into MPS memory."""
@@ -105,18 +94,14 @@ class LumaForgePipeline:
         else:
             # Quality enhancement trigger words
             if "high quality" not in prompt.lower() and "high-resolution" not in prompt.lower():
-                prompt = f"{prompt}, high-resolution, 8k, detailed, sharp focus, photorealistic"
+                prompt = f"{prompt}, high-resolution, 8k, detailed, sharp focus"
                 
-            # Quality enhancement negative prompt filter - Focus on facial quality
-            quality_neg = "blurry, blur, out of focus, low quality, low resolution, duplicate, bad anatomy, deformed, distorted, bad hands, malformed hands, bad face, asymmetrical face, malformed face, bad facial features, distorted face"
-            
-            # ANTI-PAINTED look negatives
-            anti_painted = "illustrated, painting style, cartoon, anime, drawing, sketch, watercolor, oil painting, artistic style, unrealistic, plastic"
-            
+            # Quality enhancement negative prompt filter
+            quality_neg = "blurry, blur, out of focus, low quality, low resolution, duplicate, bad anatomy, deformed, distorted"
             if not negative_prompt:
-                negative_prompt = f"{quality_neg}, {anti_painted}"
+                negative_prompt = quality_neg
             else:
-                negative_prompt = f"{negative_prompt}, {quality_neg}, {anti_painted}"
+                negative_prompt = f"{negative_prompt}, {quality_neg}"
 
             # If a title is found in the prompt, suppress model text generation to avoid double/garbled lettering
             if titles:
@@ -165,12 +150,6 @@ class LumaForgePipeline:
             
         # Apply LumaForge low-transparency watermark logo overlay
         image = self._overlay_lumaforge_logo(image)
-        
-        # Auto-enhance image quality to fix pixelation and improve details
-        try:
-            image = self.image_enhancer.enhance_full_pipeline(image, enhancement_level="high")
-        except Exception as e:
-            print(f"[ImageEnhancer] Enhancement skipped: {e}")
         
         return {
             "image": image,
@@ -243,10 +222,10 @@ class LumaForgePipeline:
             else:
                 # Quality enhancement trigger words for normal images
                 if "high quality" not in p_lower and "high-resolution" not in p_lower:
-                    prompt = f"{prompt}, high-resolution, 8k, detailed, sharp focus, photorealistic"
+                    prompt = f"{prompt}, high-resolution, 8k, detailed, sharp focus"
                     
-                # Quality enhancement negative prompt filter - Focus on facial quality
-                quality_neg = "blurry, blur, out of focus, low quality, low resolution, duplicate, bad anatomy, deformed, distorted, bad hands, malformed hands, bad face, asymmetrical face, malformed face, bad facial features, distorted face"
+                # Quality enhancement negative prompt filter
+                quality_neg = "blurry, blur, out of focus, low quality, low resolution, duplicate, bad anatomy, deformed, distorted"
                 if not negative_prompt:
                     negative_prompt = quality_neg
                 else:
@@ -604,290 +583,10 @@ class LumaForgePipeline:
         # Blend the modified image with the original image according to strength
         return Image.blend(image.convert("RGB"), edited.convert("RGB"), strength)
 
-    def apply_depth_of_field(self, image: Image.Image, focus_point=(0.5, 0.5), blur_strength=10, focus_size=0.3) -> Image.Image:
-        """Applies depth-of-field effect with variable focus point and blur strength."""
-        import numpy as np
-        
-        width, height = image.size
-        focus_x = int(focus_point[0] * width)
-        focus_y = int(focus_point[1] * height)
-        focus_radius = max(width, height) * focus_size
-        
-        # Create distance map from focus point
-        y_coords, x_coords = np.ogrid[:height, :width]
-        distance = np.sqrt((x_coords - focus_x)**2 + (y_coords - focus_y)**2)
-        
-        # Create blur mask (1.0 = sharp, 0.0 = blurred)
-        blur_mask = np.exp(-(distance**2) / (2 * (focus_radius**2)))
-        
-        # Apply variable blur
-        blurred = image.filter(ImageFilter.GaussianBlur(radius=blur_strength))
-        img_array = np.array(image, dtype=float)
-        blur_array = np.array(blurred, dtype=float)
-        
-        # Blend based on mask
-        blur_mask_3d = np.stack([blur_mask] * 3, axis=2)
-        result_array = img_array * blur_mask_3d + blur_array * (1 - blur_mask_3d)
-        
-        return Image.fromarray(np.clip(result_array, 0, 255).astype(np.uint8))
-
-    def apply_film_grain(self, image: Image.Image, intensity=0.1, grain_size=1) -> Image.Image:
-        """Applies analog film grain effect for vintage aesthetics."""
-        import numpy as np
-        
-        img_array = np.array(image, dtype=float)
-        
-        # Generate noise pattern
-        noise = np.random.normal(0, intensity * 255, img_array.shape)
-        
-        # Apply slight blur to grain for smoothness
-        try:
-            from scipy import ndimage
-            if grain_size > 1:
-                noise = ndimage.gaussian_filter(noise, sigma=grain_size)
-        except:
-            pass
-        
-        # Blend noise with image
-        result = img_array + noise
-        
-        return Image.fromarray(np.clip(result, 0, 255).astype(np.uint8))
-
-    def apply_chromatic_aberration(self, image: Image.Image, offset=5) -> Image.Image:
-        """Applies chromatic aberration (color fringing) effect for cinematic look."""
-        import numpy as np
-        
-        img_array = np.array(image.convert('RGB'), dtype=float)
-        height, width = img_array.shape[:2]
-        
-        # Shift each color channel
-        r_shifted = np.roll(img_array[:, :, 0], offset, axis=1)
-        g_original = img_array[:, :, 1]
-        b_shifted = np.roll(img_array[:, :, 2], -offset, axis=1)
-        
-        result = np.stack([r_shifted, g_original, b_shifted], axis=2)
-        
-        return Image.fromarray(np.clip(result, 0, 255).astype(np.uint8))
-
-    def apply_lens_flare(self, image: Image.Image, center=(0.5, 0.5), intensity=0.3) -> Image.Image:
-        """Adds lens flare effect at specified position."""
-        img = image.convert('RGB')
-        width, height = img.size
-        
-        # Create flare overlay
-        flare_overlay = Image.new('RGB', (width, height), (0, 0, 0))
-        flare_draw = ImageDraw.Draw(flare_overlay, 'RGBA')
-        
-        center_x = int(center[0] * width)
-        center_y = int(center[1] * height)
-        
-        # Main flare circle
-        flare_radius = min(width, height) * 0.15
-        flare_draw.ellipse(
-            [center_x - flare_radius, center_y - flare_radius,
-             center_x + flare_radius, center_y + flare_radius],
-            fill=(255, 255, 200, int(255 * intensity * 0.5))
-        )
-        
-        # Blend with original
-        result = Image.blend(img, flare_overlay.convert('RGB'), intensity * 0.3)
-        
-        return result
-
-    def inpaint(self, image: Image.Image, mask: Image.Image, prompt: str, steps=20, guidance_scale=7.5, strength=1.0) -> dict:
-        """
-        Performs inpainting - regenerates masked regions based on prompt.
-        
-        Args:
-            image: Original image
-            mask: Binary mask (white = inpaint, black = keep)
-            prompt: Description of what to paint
-            steps: Number of inference steps
-            guidance_scale: Guidance scale for prompt adherence
-            strength: How much to modify (0-1)
-        
-        Returns:
-            Dict with inpainted image and metadata
-        """
-        start_time = time.time()
-        
-        # Convert mask to grayscale if needed
-        if mask.mode != 'L':
-            mask = mask.convert('L')
-        
-        # Ensure image and mask are same size
-        if image.size != mask.size:
-            mask = mask.resize(image.size, Image.Resampling.LANCZOS)
-        
-        print(f"[LumaForgePipeline] Inpainting region with prompt: {prompt}")
-        
-        try:
-            from diffusers import StableDiffusionInpaintPipeline
-            import torch
-            
-            # Load inpaint pipeline
-            inpaint_pipe = StableDiffusionInpaintPipeline.from_pretrained(
-                self.model_id if not self.use_sdxl else "runwayml/stable-diffusion-inpainting",
-                torch_dtype=torch.float32,
-                safety_checker=None
-            ).to(self.device)
-            
-            if self.device == "mps":
-                inpaint_pipe.enable_attention_slicing()
-            
-            # Generate inpainted image
-            generator = torch.Generator(device=self.device).manual_seed(random.randint(0, 9999999))
-            result = inpaint_pipe(
-                prompt=prompt,
-                image=image,
-                mask_image=mask,
-                num_inference_steps=steps,
-                guidance_scale=guidance_scale,
-                strength=strength,
-                generator=generator
-            )
-            
-            inpainted_image = result.images[0]
-            
-        except Exception as e:
-            print(f"[LumaForgePipeline] Inpainting failed: {e}. Using mock inpaint.")
-            inpainted_image = self._mock_inpaint(image, mask, prompt)
-        
-        latency_sec = time.time() - start_time
-        
-        return {
-            "image": inpainted_image,
-            "latency_sec": latency_sec,
-            "status": "success"
-        }
-
-    def outpaint(self, image: Image.Image, expand_pixels=256, prompt="seamless extension", steps=20) -> dict:
-        """
-        Performs outpainting - extends canvas and fills with generated content.
-        
-        Args:
-            image: Original image
-            expand_pixels: How many pixels to expand on each side
-            prompt: Description of extension
-            steps: Inference steps
-        
-        Returns:
-            Dict with outpainted image
-        """
-        start_time = time.time()
-        
-        width, height = image.size
-        new_width = width + (expand_pixels * 2)
-        new_height = height + (expand_pixels * 2)
-        
-        # Create expanded canvas with original image centered
-        canvas = Image.new('RGB', (new_width, new_height), (128, 128, 128))
-        canvas.paste(image, (expand_pixels, expand_pixels))
-        
-        # Create mask (white for areas to fill)
-        mask = Image.new('L', (new_width, new_height), 0)
-        mask_draw = ImageDraw.Draw(mask)
-        mask_draw.rectangle([0, 0, new_width, new_height], fill=255)
-        mask_draw.rectangle([expand_pixels, expand_pixels, expand_pixels + width, expand_pixels + height], fill=0)
-        
-        print(f"[LumaForgePipeline] Outpainting canvas from {width}x{height} to {new_width}x{new_height}")
-        
-        # Use inpainting to fill the expanded regions
-        result = self.inpaint(canvas, mask, prompt, steps=steps)
-        
-        latency_sec = time.time() - start_time
-        
-        return {
-            "image": result["image"],
-            "latency_sec": latency_sec,
-            "original_size": (width, height),
-            "expanded_size": (new_width, new_height)
-        }
-
-    def _mock_inpaint(self, image: Image.Image, mask: Image.Image, prompt: str) -> Image.Image:
-        """Fallback inpainting using simple blending and effects."""
-        import numpy as np
-        
-        mask_array = np.array(mask, dtype=float) / 255.0
-        
-        # Apply slight blur and color shift to masked regions
-        blurred = image.filter(ImageFilter.GaussianBlur(radius=5))
-        
-        img_array = np.array(image, dtype=float)
-        blur_array = np.array(blurred, dtype=float)
-        
-        mask_3d = np.stack([mask_array] * 3, axis=2)
-        result_array = img_array * (1 - mask_3d) + blur_array * mask_3d
-        
-        return Image.fromarray(np.clip(result_array, 0, 255).astype(np.uint8))
-
-    def upscale_advanced(self, image: Image.Image, scale_factor: float = 4.0, model_type: str = "realesrgan") -> dict:
-        """
-        Advanced upscaling with multiple model options (4x, 8x support).
-        
-        Args:
-            image: Input image
-            scale_factor: Upscaling factor (2, 3, 4, 8)
-            model_type: 'realesrgan' or 'lanczos'
-        
-        Returns:
-            Dict with upscaled image and metadata
-        """
-        start_time = time.time()
-        width, height = image.size
-        
-        if model_type == "realesrgan":
-            try:
-                # Try to use Real-ESRGAN for higher quality
-                print(f"[LumaForgePipeline] Upscaling {scale_factor}x using Real-ESRGAN...")
-                from basicsr.archs.rrdbnet_arch import RRDBNet
-                from realesrgan import RealESRGANer
-                
-                model_name = f'RealESRGAN_x{int(scale_factor)}'
-                model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=int(scale_factor))
-                upsampler = RealESRGANer(scale_factor, model, tile=400, tile_pad=10, pre_pad=0, half=False)
-                
-                output, _ = upsampler.enhance(image, outscale=scale_factor)
-                upscaled = Image.fromarray(output)
-                
-            except ImportError:
-                print("[LumaForgePipeline] Real-ESRGAN not available, falling back to Lanczos")
-                upscaled = self._upscale_lanczos(image, scale_factor)
-        else:
-            upscaled = self._upscale_lanczos(image, scale_factor)
-        
-        new_width = int(width * scale_factor)
-        new_height = int(height * scale_factor)
-        
-        # Ensure output is correct size
-        if upscaled.size != (new_width, new_height):
-            upscaled = upscaled.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        
-        latency_sec = time.time() - start_time
-        
-        return {
-            "image": upscaled,
-            "latency_sec": latency_sec,
-            "width": new_width,
-            "height": new_height,
-            "scale_factor": scale_factor,
-            "model": model_type
-        }
-
-    def _upscale_lanczos(self, image: Image.Image, scale_factor: float) -> Image.Image:
-        """Fallback Lanczos upscaling with sharpening."""
-        new_size = (int(image.width * scale_factor), int(image.height * scale_factor))
-        upscaled = image.resize(new_size, Image.Resampling.LANCZOS)
-        
-        # Apply unsharp mask for detail enhancement
-        sharpened = upscaled.filter(ImageFilter.UnsharpMask(radius=3, percent=200, threshold=5))
-        
-        return sharpened
-
     def upscale(self, image: Image.Image, scale_factor: float = 2.0, mock: bool = False) -> dict:
         """
-        Upscales the PIL image using anti-alias LANCZOS interpolation with enhancement
-        to prevent pixelation and maintain quality.
+        Upscales the PIL image using high-quality LANCZOS interpolation
+        and applies an unsharp mask to refine edges and details.
         """
         start_time = time.time()
         start_mem_bytes = self._get_mps_memory()
@@ -896,11 +595,14 @@ class LumaForgePipeline:
         new_width = int(width * scale_factor)
         new_height = int(height * scale_factor)
         
-        # Use enhanced anti-alias upscaling
-        upscaled = self.image_enhancer.anti_alias_upscale(image, scale_factor=int(scale_factor))
+        # High fidelity resize
+        resampled = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        # Edge sharpening filter
+        sharpened = resampled.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
         
         # Apply logo watermark on the final upscaled image to preserve quality
-        final_image = self._overlay_lumaforge_logo(upscaled)
+        final_image = self._overlay_lumaforge_logo(sharpened)
         
         latency_sec = time.time() - start_time
         end_mem_bytes = self._get_mps_memory()
@@ -1246,214 +948,194 @@ class LumaForgePipeline:
 
     def _overlay_lumaforge_logo(self, image: Image) -> Image:
         """
-        Overlays a VISIBLE, professional LumaForge watermark
-        Bottom-right corner, clear and prominent
+        Overlays a beautiful, premium, glassmorphic LumaForge brand logo badge
+        in the bottom-right corner of the image to make it stand out extremely clearly.
         """
         try:
             from PIL import ImageDraw, ImageFont
             img = image.copy()
             
-            # Create overlay for watermark
+            # Create a separate RGBA draw layer for glassmorphism transparency blending
             overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
             width, height = img.size
             
-            # VISIBLE watermark dimensions
-            badge_w = 140
-            badge_h = 28
-            padding = 12
+            # Badge dimensions & positioning (Bottom-Right corner)
+            badge_w = 165
+            badge_h = 32
+            padding = 20
             
             x1 = width - padding - badge_w
             y1 = height - padding - badge_h
             x2 = width - padding
             y2 = height - padding
             
-            # VISIBLE dark background (now clearly visible)
-            badge_fill = (0, 0, 0, 200)      # Much more opaque
-            badge_border = (100, 200, 255, 180)  # Visible blue border (premium look)
+            # 1. Draw Glassmorphic Badge Plate (with fallback if rounded_rectangle fails)
+            badge_fill = (10, 10, 16, 190)    # Sleek dark translucent plate
+            badge_border = (255, 255, 255, 45) # Subtle white glass border
             
             try:
-                draw.rounded_rectangle([x1, y1, x2, y2], radius=5, fill=badge_fill, outline=badge_border, width=2)
+                draw.rounded_rectangle([x1, y1, x2, y2], radius=8, fill=badge_fill, outline=badge_border, width=1)
             except AttributeError:
-                draw.rectangle([x1, y1, x2, y2], fill=badge_fill, outline=badge_border, width=2)
+                # Fallback to standard rectangle if Pillow version is old
+                draw.rectangle([x1, y1, x2, y2], fill=badge_fill, outline=badge_border, width=1)
             
-            # Load font
+            # Load system font for crisp, premium text rendering
             font_path = "/System/Library/Fonts/Helvetica.ttc"
             if not os.path.exists(font_path):
                 font_path = "/System/Library/Fonts/Supplemental/Arial.ttf"
                 
             try:
-                font = ImageFont.truetype(font_path, 11)  # Slightly larger
+                font = ImageFont.truetype(font_path, 10)
             except Exception:
                 font = ImageFont.load_default()
+                
+            # Minimalist spaced logo text
+            text = "L U M A F O R G E"
             
-            # Clear, VISIBLE text
-            text = "LumaForge"
-            text_x = x1 + 12
-            text_y = y1 + 5
+            # 2. Draw brand text inside the badge
+            text_x = x1 + 14
+            # Center the text vertically
+            text_y = y1 + (badge_h // 2) - 6
             
-            # Bright white text (clearly visible)
-            draw.text((text_x, text_y), text, fill=(255, 255, 255, 255), font=font)
+            # Draw subtle text drop shadow
+            draw.text((text_x + 1, text_y + 1), text, fill=(0, 0, 0, 180), font=font)
+            draw.text((text_x, text_y), text, fill=(255, 255, 255, 240), font=font)
             
-            # Alpha composite overlay
+            # 3. Draw geometric diamond forge logo next to it
+            diamond_w = 12
+            diamond_h = 12
+            center_x = x2 - 20
+            center_y = y1 + (badge_h // 2)
+            
+            diamond_points = [
+                (center_x, center_y - diamond_h//2),
+                (center_x + diamond_w//2, center_y),
+                (center_x, center_y + diamond_h//2),
+                (center_x - diamond_w//2, center_y)
+            ]
+            
+            # Diamond shadow
+            shadow_points = [(x + 1, y + 1) for x, y in diamond_points]
+            draw.polygon(shadow_points, fill=(0, 0, 0, 180))
+            draw.polygon(diamond_points, fill=(255, 255, 255, 240))
+            
+            # Inner dark core accent cut
+            inner_w = 4
+            inner_h = 4
+            inner_points = [
+                (center_x, center_y - inner_h//2),
+                (center_x + inner_w//2, center_y),
+                (center_x, center_y + inner_h//2),
+                (center_x - inner_w//2, center_y)
+            ]
+            draw.polygon(inner_points, fill=(10, 10, 16, 255))
+            
+            # Alpha composite the overlay layer onto the original image
             final_img = Image.alpha_composite(img.convert("RGBA"), overlay)
             return final_img.convert("RGB")
             
         except Exception as e:
-            print(f"[LumaForgePipeline] Watermark overlay failed: {e}")
+            print(f"[LumaForgePipeline Warning] Failed to overlay watermark logo badge: {e}")
             return image
 
-    def enhance_zoom_quality(self, image: Image.Image, zoom_level: int = 2) -> Image.Image:
+    def colorize(self, image: Image.Image, style: str = "vibrant", mock: bool = False) -> dict:
         """
-        Enhance image quality for zoomed viewing to fix pixelation and blocky artifacts.
-        
-        Args:
-            image: PIL Image to enhance
-            zoom_level: How many times to zoom (2x, 3x, 4x)
-        
-        Returns:
-            Enhanced PIL Image with improved zoom quality
+        Colorizes an image with different color grading styles.
+        Styles: vibrant, warm, cool, vintage, sepia
         """
-        try:
-            return self.image_enhancer.improve_zoom_quality(image, zoom_level=zoom_level)
-        except Exception as e:
-            print(f"[LumaForgePipeline] Zoom quality enhancement failed: {e}")
-            return image
-    
-    def remove_pixelation(self, image: Image.Image) -> Image.Image:
-        """
-        Remove pixelation and block artifacts from an image.
-        Useful for fixing blocky areas in generated images.
+        start_time = time.time()
+        start_mem_bytes = self._get_mps_memory()
         
-        Returns:
-            De-pixelated PIL Image
-        """
-        try:
-            return self.image_enhancer.remove_pixelation(image)
-        except Exception as e:
-            print(f"[LumaForgePipeline] Pixelation removal failed: {e}")
-            return image
-
-    def colorize(self, image: Image.Image, style: str = "vibrant") -> Image.Image:
-        """
-        Colorize a grayscale or B&W image using AI-powered color suggestion.
+        result = image.convert("RGB").copy()
         
-        Args:
-            image: Grayscale PIL Image to colorize
-            style: Color style ('vibrant', 'warm', 'cool', 'vintage', 'sepia')
-        
-        Returns:
-            Colorized PIL Image
-        """
-        import numpy as np
-        
-        try:
-            # Convert to RGB if grayscale
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            img_array = np.array(image, dtype=np.float32)
-            
-            # Apply color grading based on style
-            if style == "sepia":
-                # Sepia tone: add warm brown tones
-                sepia_array = np.zeros_like(img_array)
-                sepia_array[:,:,0] = img_array[:,:,0] * 0.393 + img_array[:,:,1] * 0.769 + img_array[:,:,2] * 0.189
-                sepia_array[:,:,1] = img_array[:,:,0] * 0.349 + img_array[:,:,1] * 0.686 + img_array[:,:,2] * 0.168
-                sepia_array[:,:,2] = img_array[:,:,0] * 0.272 + img_array[:,:,1] * 0.534 + img_array[:,:,2] * 0.131
-                img_array = sepia_array
-            
-            elif style == "warm":
-                # Warm colors: enhance reds and yellows
-                img_array[:,:,0] = np.clip(img_array[:,:,0] * 1.15, 0, 255)  # Boost red
-                img_array[:,:,1] = np.clip(img_array[:,:,1] * 1.08, 0, 255)  # Boost green
-                img_array[:,:,2] = np.clip(img_array[:,:,2] * 0.85, 0, 255)  # Reduce blue
-            
-            elif style == "cool":
-                # Cool colors: enhance blues and reduce reds
-                img_array[:,:,0] = np.clip(img_array[:,:,0] * 0.85, 0, 255)  # Reduce red
-                img_array[:,:,1] = np.clip(img_array[:,:,1] * 1.05, 0, 255)  # Slight green boost
-                img_array[:,:,2] = np.clip(img_array[:,:,2] * 1.20, 0, 255)  # Boost blue
-            
-            elif style == "vintage":
-                # Vintage: reduce saturation, add slight yellow cast
-                img_array = img_array * 0.9 + 25  # Slightly fade
-                img_array[:,:,2] = np.clip(img_array[:,:,2] * 0.90, 0, 255)  # Reduce blue
-            
-            else:  # vibrant (default)
-                # Vibrant: boost all channels for more saturated colors
-                img_array = np.clip(img_array * 1.2, 0, 255)
-            
-            # Convert back to PIL Image
-            result = Image.fromarray(np.clip(img_array, 0, 255).astype(np.uint8), mode='RGB')
-            
-            # Apply enhancement
-            from PIL import ImageEnhance
+        if style == "vibrant":
+            # Boost saturation and contrast
             enhancer = ImageEnhance.Color(result)
-            result = enhancer.enhance(1.3)  # Boost color saturation
-            
-            print(f"[LumaForgePipeline] Image colorized with style: {style}")
-            return result
-            
-        except Exception as e:
-            print(f"[LumaForgePipeline] Colorization failed: {e}")
-            return image
+            result = enhancer.enhance(1.6)
+            contrast = ImageEnhance.Contrast(result)
+            result = contrast.enhance(1.2)
+        elif style == "warm":
+            # Warm color temperature shift
+            r, g, b = result.split()
+            r = r.point(lambda x: min(255, int(x * 1.15)))
+            g = g.point(lambda x: int(x * 0.95))
+            result = Image.merge("RGB", (r, g, b))
+        elif style == "cool":
+            # Cool color temperature shift
+            r, g, b = result.split()
+            r = r.point(lambda x: int(x * 0.85))
+            b = b.point(lambda x: min(255, int(x * 1.15)))
+            result = Image.merge("RGB", (r, g, b))
+        elif style == "vintage":
+            # Vintage film look
+            enhancer = ImageEnhance.Color(result)
+            result = enhancer.enhance(0.8)
+            result = result.convert("RGBA")
+            overlay = Image.new("RGBA", result.size, (255, 200, 100, 30))
+            result = Image.alpha_composite(result, overlay).convert("RGB")
+        elif style == "sepia":
+            # Classic sepia tone
+            result = result.convert("LA").convert("RGB")
+            r, g, b = result.split()
+            r = r.point(lambda x: min(255, int(x * 1.2)))
+            g = g.point(lambda x: int(x * 0.95))
+            b = b.point(lambda x: int(x * 0.7))
+            result = Image.merge("RGB", (r, g, b))
+        
+        latency_sec = time.time() - start_time
+        end_mem_bytes = self._get_mps_memory()
+        memory_used_mb = max(0.0, (end_mem_bytes - start_mem_bytes) / (1024 * 1024))
+        
+        return {
+            "image": result,
+            "latency_sec": latency_sec,
+            "memory_used_mb": memory_used_mb,
+            "style": style
+        }
 
-    def restore_face(self, image: Image.Image, level: str = "high") -> Image.Image:
+    def restore_face(self, image: Image.Image, intensity: str = "medium", mock: bool = False) -> dict:
         """
-        Restore and enhance faces in images.
-        Removes artifacts, improves detail, and enhances facial quality.
-        
-        Args:
-            image: PIL Image containing faces to restore
-            level: Restoration intensity ('low', 'medium', 'high', 'ultra')
-        
-        Returns:
-            Face-restored PIL Image
+        Restores and enhances facial features.
+        Intensity levels: low, medium, high, ultra
         """
-        import numpy as np
-        from PIL import ImageFilter, ImageEnhance
+        start_time = time.time()
+        start_mem_bytes = self._get_mps_memory()
         
-        try:
-            img = image.convert('RGB')
-            img_array = np.array(img, dtype=np.float32)
-            
-            # Level mapping to intensity
-            level_map = {"low": 0.3, "medium": 0.5, "high": 0.7, "ultra": 0.9}
-            intensity = level_map.get(level, 0.7)
-            
-            # Step 1: Denoise using bilateral filtering effect
-            # Create a blurred version for denoising
-            blurred = img.filter(ImageFilter.GaussianBlur(radius=1.5))
-            blurred_array = np.array(blurred, dtype=np.float32)
-            
-            # Blend original with blurred (creates denoising effect)
-            denoised_array = img_array * (1 - intensity * 0.3) + blurred_array * (intensity * 0.3)
-            
-            # Step 2: Enhance local contrast (sharpen details)
-            sharpened = img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
-            sharpened_array = np.array(sharpened, dtype=np.float32)
-            
-            # Blend denoised with sharpened
-            result_array = denoised_array * (1 - intensity * 0.4) + sharpened_array * (intensity * 0.4)
-            
-            # Step 3: Boost colors and reduce imperfections
-            # Enhance brightness and contrast
-            result_img = Image.fromarray(np.clip(result_array, 0, 255).astype(np.uint8))
-            
-            contrast = ImageEnhance.Contrast(result_img)
-            result_img = contrast.enhance(1.0 + intensity * 0.2)
-            
-            brightness = ImageEnhance.Brightness(result_img)
-            result_img = brightness.enhance(1.0 + intensity * 0.1)
-            
-            # Step 4: Enhance color vibrancy
-            color = ImageEnhance.Color(result_img)
-            result_img = color.enhance(1.0 + intensity * 0.15)
-            
-            print(f"[LumaForgePipeline] Face restored with level: {level} (intensity: {intensity})")
-            return result_img
-            
-        except Exception as e:
-            print(f"[LumaForgePipeline] Face restoration failed: {e}")
-            return image
+        result = image.convert("RGB").copy()
+        
+        # Intensity mapping for enhancement factors
+        intensity_map = {
+            "low": 1.1,
+            "medium": 1.3,
+            "high": 1.5,
+            "ultra": 1.8
+        }
+        factor = intensity_map.get(intensity, 1.3)
+        
+        # Step 1: Denoise
+        result = result.filter(ImageFilter.MedianFilter(size=3))
+        
+        # Step 2: Sharpen
+        sharpness = ImageEnhance.Sharpness(result)
+        result = sharpness.enhance(factor)
+        
+        # Step 3: Enhance contrast
+        contrast = ImageEnhance.Contrast(result)
+        result = contrast.enhance(factor * 0.7)
+        
+        # Step 4: Boost color vibrancy for skin tones
+        color = ImageEnhance.Color(result)
+        result = color.enhance(1.15)
+        
+        latency_sec = time.time() - start_time
+        end_mem_bytes = self._get_mps_memory()
+        memory_used_mb = max(0.0, (end_mem_bytes - start_mem_bytes) / (1024 * 1024))
+        
+        return {
+            "image": result,
+            "latency_sec": latency_sec,
+            "memory_used_mb": memory_used_mb,
+            "intensity": intensity
+        }
+

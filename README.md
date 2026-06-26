@@ -1,12 +1,104 @@
-# 🌌 LumaForge: Spatial Image Generation & Fine-Tuning Engine
+# 🎨 LumaForge: AI Image Generation Platform
 
 [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A5%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/sujithputta/Lumaforge)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-LumaForge AuraGen is a state-of-the-art, local-first latent image generation, fine-tuning, and post-processing workstation optimized for Apple Silicon (MPS). It features a premium, glassmorphic **Spatial UI Web Playground** built with Next.js, Bun, and Tailwind, and a robust **AI Engine Backend** built with PyTorch, Diffusers, FastAPI, and Ollama.
+<div align="center">
+
+**Text-to-Image** • **Image Styling** • **Background Removal** • **2x Upscaling** • **LoRA Fine-tuning**
+
+Modular image generation backend designed for creative developers. Combines **Stable Diffusion**, **LoRA fine-tuning**, and **image enhancement** with a professional web UI—optimized for Apple Silicon.
+
+[Explore Examples](#-examples) • [Try Now](#-quick-start) • [API Docs](#-api-reference) • [Deploy](#-deployment)
+
+</div>
 
 ---
 
-## 🏗️ Architecture Overview
+## 🚀 What is LumaForge?
+
+LumaForge is a production-ready, modular image generation platform combining:
+
+- **AI Engine Backend** (FastAPI + PyTorch + Stable Diffusion)
+- **Spatial UI Web Playground** (Next.js + Tailwind + Bun)
+- **Advanced Safety & Moderation** (Ollama-based content checks)
+- **Performance Optimizations** (Apple Silicon MPS, vectorized processing)
+- **Deployment-Ready** (Docker, Hugging Face Spaces, cloud-ready)
+
+Perfect for building AI creative suites, automating design workflows, or deploying image generation at scale.
+
+---
+
+## ✨ Features
+
+| Feature | Status | Tech |
+|---------|--------|------|
+| **Text-to-Image** | ✅ | Stable Diffusion v1.5 |
+| **Image-to-Image Styling** | ✅ | Img2Img with face protection |
+| **2x Upscaling** | ✅ | Lanczos + Unsharp Mask |
+| **Background Removal** | ✅ | Vectorized NumPy (**~8.9ms**) |
+| **LoRA Fine-tuning** | ✅ | PyTorch UNet adaptation |
+| **Web UI Dashboard** | ✅ | Next.js + Tailwind glassmorphic |
+| **REST API** | ✅ | FastAPI with rate limiting |
+| **Apple Silicon** | ✅ | MPS acceleration (M1/M2/M3) |
+| **Safety & Auditing** | ✅ | Ollama + JSONL logging |
+
+---
+
+## 🖼️ Examples
+
+### Text-to-Image
+
+**Prompt**: *"A futuristic cyberpunk city at sunset"*
+
+```bash
+curl -X POST http://localhost:7860/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "cyberpunk city", "steps": 30, "guidance_scale": 7.5}'
+```
+
+Generate stunning images with rich composition and vibrant colors.
+
+---
+
+### Image-to-Image Styling
+
+**Input**: Portrait photo → **Output**: Anime illustration
+
+The pipeline preserves facial structure using a **Radial Face Protection Mask** while applying creative styles.
+
+Key innovation: Pixel-accurate detail transfer preserves eyes, nose, and expression.
+
+---
+
+### Background Removal
+
+**Before**: Product with background | **After**: Transparent background
+
+Vectorized NumPy segmentation with smooth alpha feathering—completes in **~8.9ms**.
+
+---
+
+### 2x Upscaling
+
+**Original**: 512×512 | **Upscaled**: 1024×1024
+
+Lanczos resampling + Unsharp Mask filter for crisp, detailed outputs.
+
+---
+
+### LoRA Fine-tuning
+
+Train custom adapters in minutes:
+
+```bash
+python main.py train --epochs 5 --lr 5e-6 --batch_size 2
+```
+
+Monitor real-time loss metrics, prompt adherence, and progress.
+
+---
 
 The codebase is split into two self-contained subsystems:
 
@@ -133,3 +225,194 @@ python3 test_enhancements.py
 
 ## 📄 License
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🏗️ System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   Next.js Web Playground                        │
+│        (Glassmorphic Spatial UI, Realtime Monitoring)           │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                    Bun API Proxy Routes
+                   (Rate Limiting / Auth)
+                             │
+┌────────────────────────────┴────────────────────────────────────┐
+│              FastAPI Backend (app.py)                           │
+│   ┌──────────────────────────────────────────────────────────┐  │
+│   │  Safety Manager (Ollama Integration)                    │  │
+│   │  - Prompt moderation & safety classification           │  │
+│   │  - Output screening & audit logging                    │  │
+│   └──────────────────────────────────────────────────────────┘  │
+│                         │                                       │
+│   ┌─────────────────────┴──────────────────────────────────┐  │
+│   │         LumaForge Core Pipeline (pipeline.py)         │  │
+│   │  ┌──────────────┐  ┌──────────────┐  ┌────────────┐  │  │
+│   │  │Text-to-Image│  │Img-to-Img    │  │Upscaling   │  │  │
+│   │  └──────────────┘  └──────────────┘  └────────────┘  │  │
+│   │  ┌──────────────┐  ┌──────────────┐  ┌────────────┐  │  │
+│   │  │BG Removal    │  │LoRA Training │  │Benchmarks  │  │  │
+│   │  └──────────────┘  └──────────────┘  └────────────┘  │  │
+│   └─────────────────────┬──────────────────────────────────┘  │
+│                         │                                      │
+│                    PyTorch + MPS                               │
+│                Stable Diffusion v1.5                           │
+│         (Apple Silicon Optimized)                              │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 Project Structure
+
+```
+LumaForge/
+├── model/                          # Backend (FastAPI + PyTorch)
+│   ├── app.py                      # FastAPI server entrypoint
+│   ├── main.py                     # CLI interface
+│   ├── requirements.txt            # Python dependencies
+│   ├── Dockerfile                  # Docker configuration
+│   ├── README.md                   # Model documentation
+│   └── lumaforge/
+│       ├── pipeline.py             # Core image synthesis
+│       ├── ollama_client.py        # LLM integration
+│       ├── safety.py               # Content moderation
+│       ├── train.py                # LoRA fine-tuning
+│       ├── dataset_curator.py      # Image curation
+│       └── benchmark.py            # Performance evaluation
+├── web/                            # Frontend (Next.js)
+│   ├── app/                        # Next.js 13+ app directory
+│   ├── components/                 # UI components
+│   └── README.md                   # Web UI docs
+├── data/                           # Dataset storage
+├── outputs/                        # Generated images
+└── README.md                       # This file
+```
+
+---
+
+## ⚡ Key Optimizations
+
+### Performance
+- **Vectorized NumPy**: Background removal in **~8.9ms**, sketch generation in **~4.1ms**
+- **Apple Silicon MPS**: GPU acceleration with attention slicing for memory efficiency
+- **Shared Pipeline Weights**: Minimize VRAM overhead
+- **Token-Bucket Rate Limiting**: 10 gen/min, 60 API calls/min per IP
+
+### Quality
+- **Radial Face Protection Mask**: Preserves facial structure in transformations
+- **High-Pass Detail Transfer**: Pixel-accurate detail preservation
+- **Adaptive Strength Capping**: Limited to 0.32 for cartoon styles
+- **Lanczos + Unsharp Mask**: High-fidelity 2x upscaling
+
+### Safety
+- **Multi-Stage Moderation**: Pre & post-generation checks
+- **Ollama Integration**: Local LLM-based classification
+- **Audit Logging**: JSONL format for compliance
+- **Content Tagging**: Automatic classification
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- macOS with Apple Silicon (M1/M2/M3)
+- Python 3.10+, Node.js 18+, Bun
+- Ollama running locally with `llama3.2:1b`
+
+### Backend
+
+```bash
+cd model
+pip install -r requirements.txt
+python app.py
+```
+
+Server: `http://localhost:7860`
+
+### Frontend
+
+```bash
+cd web
+bun install
+bun run dev
+```
+
+UI: `http://localhost:3000`
+
+### Quick Test
+
+```bash
+cd model
+python main.py generate --prompt "cyberpunk street" --mock
+```
+
+---
+
+## 📡 API Endpoints
+
+- **POST** `/api/generate` - Text-to-Image
+- **POST** `/api/generate-img2img` - Image styling
+- **POST** `/api/upscale` - 2x upscaling
+- **POST** `/api/remove-background` - Background removal
+- **POST** `/api/train` - Start LoRA fine-tuning
+- **GET** `/api/train/status` - Training progress
+- **GET** `/api/status` - System status
+
+Full API reference: [model/README.md](model/README.md#-api-endpoints-reference)
+
+---
+
+## 📊 Performance Metrics
+
+| Operation | Latency | Device |
+|-----------|---------|--------|
+| Text-to-Image (30 steps) | ~12-15s | M1 MPS |
+| Image-to-Image (20 steps) | ~8-10s | M1 MPS |
+| 2x Upscaling | ~1.2s | CPU |
+| Background Removal | **~8.9ms** | NumPy |
+| Pencil Sketch | **~4.1ms** | NumPy |
+
+---
+
+## 🐳 Deployment
+
+### Docker
+```bash
+cd model
+docker build -t lumaforge .
+docker run -p 7860:7860 lumaforge
+```
+
+### Hugging Face Spaces
+1. Create Docker space
+2. Push `model/` directory
+3. Auto-deploys to your URL
+
+---
+
+## 🔒 Safety
+
+- Content moderation with Ollama
+- Comprehensive audit trails
+- Per-IP rate limiting
+- Optional watermarking
+
+---
+
+## 📚 Documentation
+
+- [Backend API Docs](model/README.md)
+- [Frontend Guide](web/README.md)
+- [Product Requirements](PRD.txt)
+
+---
+
+<div align="center">
+
+**Built for Creative AI Development**
+
+[View on Hugging Face](https://huggingface.co/sujithputta/Lumaforge) • [Explore Examples](#-examples) • [Get Started](#-quick-start)
+
+</div>

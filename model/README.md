@@ -1,5 +1,5 @@
 ---
-title: LumaForge-Image Generation Model
+title: LumaForge-Image Generation Model v1.1
 emoji: 🌌
 colorFrom: indigo
 colorTo: purple
@@ -7,11 +7,51 @@ sdk: docker
 app_port: 7860
 pinned: false
 license: mit
+language:
+- en
+base_model:
+- stable-diffusion-v1-5/stable-diffusion-v1-5
+library_name: diffusers
+tags:
+- diffusers
+- lora
+- stable-diffusion
+- text-to-image
+- image-to-image
+- image-generation
+- image-editing
+- colorization
+- face-restoration
+- fastapi
+- mps
 ---
 
-# 🌌 LumaForge AuraGen: Latent Diffusion & Fine-Tuning API Engine
+# 🌌 LumaForge v1.1 - Advanced Image Generation Model
 
-This is the self-contained backend API engine for LumaForge AuraGen, designed to be deployed directly to **Hugging Face Spaces** (Docker or Python API spaces). It provides endpoints for Text-to-Image generation, Image-to-Image styling, 2x upscaling, background removal, dataset curation, and LoRA fine-tuning telemetry.
+LumaForge is a powerful image generation model built on Stable Diffusion, featuring **16 specialized categories**, advanced image editing capabilities, and fine-tuning support. This repository contains the complete model backend with a FastAPI interface, designed to be deployed directly to **Hugging Face Spaces**.
+
+### Model Capabilities
+Text-to-Image generation with **16 specialized categories**, Image-to-Image styling, advanced image editing (colorization & face restoration), 2x upscaling, background removal, dataset curation, and LoRA fine-tuning.
+
+### 🎨 What's New in v1.1
+
+- **16 Specialized Generation Categories**: Creative Art, Characters, Landscapes, Architecture, Vehicles, Products, Marketing, Food, Fashion, Gaming, Animals, Events, Business, Education (110+ optimized prompt templates)
+- **Colorization Endpoint**: Transform B&W images with 5 color grading styles (Vibrant, Warm, Cool, Vintage, Sepia)
+- **Face Restoration Endpoint**: Enhance facial features with 4 intensity levels (Low, Medium, High, Ultra)
+- **Advanced Prompt Enhancement**: Category-aware prompt expansion for superior generation quality
+
+### 📊 Model Specifications
+
+| Specification | Details |
+|--------------|---------|
+| **Base Model** | Stable Diffusion v1.5 with fine-tuning capability |
+| **Backend** | FastAPI with PyTorch & Diffusers |
+| **Device Support** | Apple Silicon MPS, CPU fallback |
+| **Categories** | 16 specialized categories with 110+ prompt templates |
+| **Image Editing** | Colorization (5 styles), Face Restoration (4 levels), Background Removal, Upscaling (2x) |
+| **Deployment** | Docker or Python SDK on Hugging Face Spaces |
+| **Rate Limiting** | 10 gen/min, 60 API calls/min |
+| **Output Format** | Base64 PNG with metadata |
 
 ---
 
@@ -112,7 +152,42 @@ Create a Hugging Face space with the `FastAPI` SDK, selecting **Python 3.10**, a
     ```
   * **Actions**: Isolates the foreground subject. Uses `rembg` if available, falling back to a vectorized NumPy color-threshold algorithm featuring linear alpha feathering to prevent jagged edges.
 
-### 6. Model Training Telemetry
+### 6. Image Colorization (v1.1)
+* **`POST /api/colorize`**
+  * **Payload**:
+    ```json
+    {
+      "image_b64": "data:image/png;base64,...",
+      "style": "vibrant | warm | cool | vintage | sepia",
+      "mock": false
+    }
+    ```
+  * **Styles**:
+    - **Vibrant**: Boost saturation and contrast for punchy, eye-catching colors
+    - **Warm**: Golden temperature shift for cozy, sunset-like atmospheres
+    - **Cool**: Blue temperature shift for calming, professional aesthetics
+    - **Vintage**: Retro film look with muted tones and warm overlay
+    - **Sepia**: Classic sepia tone for timeless, nostalgic effects
+  * **Actions**: Applies adaptive color grading and enhancement filters to transform image color profiles.
+
+### 7. Face Restoration (v1.1)
+* **`POST /api/face-restoration`**
+  * **Payload**:
+    ```json
+    {
+      "image_b64": "data:image/png;base64,...",
+      "intensity": "low | medium | high | ultra",
+      "mock": false
+    }
+    ```
+  * **Intensity Levels**:
+    - **Low**: Subtle enhancement, preserves original character
+    - **Medium**: Balanced enhancement for improved clarity
+    - **High**: Aggressive enhancement for maximum facial detail
+    - **Ultra**: Maximum enhancement with intensive denoising and sharpening
+  * **Actions**: Applies denoising, sharpening, contrast enhancement, and color vibrancy boost to improve facial features and clarity.
+
+### 8. Model Training Telemetry
 * **`POST /api/train`**: Triggers PyTorch UNet LoRA layer fine-tuning on a background thread.
 * **`GET /api/train/status`**: Returns live telemetry logs (epoch progress, validation loss metrics, prompt adherence).
 
