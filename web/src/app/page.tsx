@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, Download, ShieldCheck, History, Sliders, Cpu, LineChart, 
-  Play, Flame, Activity, CheckCircle2, AlertTriangle, RefreshCw, 
-  Info, ShieldAlert, BadgeAlert, Layers, Image as ImageIcon, Upload
+  Play, Flame, Activity, RefreshCw, 
+  Info, ShieldAlert, Layers, Image as ImageIcon, Upload
 } from 'lucide-react';
 
 interface PromptMetadata {
@@ -121,7 +121,7 @@ const TASK_PRESETS: Record<string, { prompt: string; strength: number }> = {
 
 export default function LumaForgePlayground() {
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'playground' | 'training' | 'audit' | 'benchmark'>('playground');
+  const [activeTab, setActiveTab] = useState<'playground' | 'editor' | 'effects' | 'batch' | 'training' | 'dreambooth' | 'models' | 'audit' | 'benchmark' | 'analytics'>('playground');
 
   // Server Health Status
   const [healthStatus, setHealthStatus] = useState<{ status: string; device: string; mps_available: boolean; ollama_connected: boolean } | null>(null);
@@ -134,13 +134,13 @@ export default function LumaForgePlayground() {
   const [upscaling, setUpscaling] = useState<boolean>(false);
   const [removingBackground, setRemovingBackground] = useState<boolean>(false);
   const [prompt, setPrompt] = useState('');
-  const [mode, setMode] = useState<'general' | 'poster' | 'character'>('general');
+  const [mode, setMode] = useState<'general' | 'poster' | 'character' | string>('general');
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16' | '4:3' | '3:4'>('1:1');
   const [steps, setSteps] = useState(20);
   const [cfg, setCfg] = useState(7.5);
   const [negativePrompt, setNegativePrompt] = useState('');
   const [seed, setSeed] = useState<number | string>(-1);
-  const [mock, setMock] = useState(true); // Default to mock for easy instant UI testing
+  const [mock, setMock] = useState(false); // Use real model for photorealistic output
   const [device, setDevice] = useState('mps');
 
   // Generation Results
@@ -171,7 +171,184 @@ export default function LumaForgePlayground() {
   const [benchmarking, setBenchmarking] = useState(false);
   const [benchReport, setBenchReport] = useState<any>(null);
 
-  // Fetch server status on mount
+  // Advanced Effects State
+  const [selectedEffect, setSelectedEffect] = useState<'depth-of-field' | 'film-grain' | 'chromatic-aberration' | 'lens-flare'>('depth-of-field');
+  const [effectParams, setEffectParams] = useState<Record<string, any>>({
+    'depth-of-field': { focus_point: [0.5, 0.5], blur_strength: 12, focus_size: 0.3 },
+    'film-grain': { grain_size: 2, intensity: 0.15 },
+    'chromatic-aberration': { offset: 8 },
+    'lens-flare': { center: [0.7, 0.3], intensity: 0.5 }
+  });
+
+  // Batch Generation State
+  const [batchPrompts, setBatchPrompts] = useState<string[]>(['', '', '']);
+  const [batchCount, setBatchCount] = useState(3);
+  const [batchResults, setBatchResults] = useState<Array<{image_b64: string}>>([]);
+  const [batchGenerating, setBatchGenerating] = useState(false);
+
+  // Inpaint/Outpaint State
+  const [editorMode, setEditorMode] = useState<'inpaint' | 'outpaint'>('inpaint');
+  const [inpaintMask, setInpaintMask] = useState<string | null>(null);
+  const [canvasRef, setCanvasRef] = useState<HTMLCanvasElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+
+  // Model Switching State
+  const [currentModel, setCurrentModel] = useState('sd-v1.5');
+  const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; quality: string; speed: string; vram_mb: number}>>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+
+  // Category Selection State
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
+  const [availableCategories, setAvailableCategories] = useState<Record<string, string>>({});
+  const [subcategoryOptions, setSubcategoryOptions] = useState<Record<string, string>>({});
+
+  // Colorization State
+  const [colorizeStyle, setColorizeStyle] = useState<'vibrant' | 'warm' | 'cool' | 'vintage' | 'sepia'>('vibrant');
+  const [colorizing, setColorizing] = useState(false);
+
+  // Face Restoration State
+  const [faceRestorationLevel, setFaceRestorationLevel] = useState<'low' | 'medium' | 'high' | 'ultra'>('high');
+  const [restoringFace, setRestoringFace] = useState(false);
+
+  // Dreambooth State
+  const [dreamboothImages, setDreamboothImages] = useState<string[]>([]);
+  const [uniqueToken, setUniqueToken] = useState('sks person');
+  const [dreamboothTraining, setDreamboothTraining] = useState(false);
+  const [dreamboothStatus, setDreamboothStatus] = useState<any>(null);
+
+  // Analytics State
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  // Session management state
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<any>(null);
+  const [sessionPoll, setSessionPoll] = useState<NodeJS.Timeout | null>(null);
+
+  // Check for active session on mount
+  useEffect(() => {
+    const savedSessionId = sessionStorage.getItem('currentGenerationSession');
+    if (savedSessionId) {
+      setCurrentSessionId(savedSessionId);
+      pollSessionStatus(savedSessionId);
+    }
+  }, []);
+
+  const pollSessionStatus = async (sessionId: string) => {
+    try {
+      const res = await fetch('/api/generate-session/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSessionStatus(data);
+
+        if (data.status === 'completed' || data.status === 'error' || data.status === 'cancelled') {
+          // Generation complete
+          if (data.status === 'completed' && data.result) {
+            setGenResult(data.result);
+            setGenerating(false);
+            setGenStage('');
+          }
+          // Clean up session
+          await fetch('/api/generate-session/cleanup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId })
+          });
+          sessionStorage.removeItem('currentGenerationSession');
+          setCurrentSessionId(null);
+        }
+      }
+    } catch (err) {
+      console.error('Session status check failed:', err);
+    }
+  };
+
+  // Auto-poll session status every 2 seconds
+  useEffect(() => {
+    if (currentSessionId && generating) {
+      const poll = setInterval(() => {
+        pollSessionStatus(currentSessionId);
+      }, 2000);
+      setSessionPoll(poll);
+      return () => clearInterval(poll);
+    }
+  }, [currentSessionId, generating]);
+
+  const handleGenerateWithSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prompt.trim()) return;
+
+    setGenerating(true);
+    setGenError(null);
+    setGenResult(null);
+
+    try {
+      // Start generation session
+      const parsedSeed = typeof seed === 'string' ? parseInt(seed) : seed;
+      
+      const res = await fetch('/api/generate-session/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          mode,
+          aspect_ratio: aspectRatio,
+          steps,
+          guidance_scale: cfg,
+          negative_prompt: negativePrompt,
+          seed: isNaN(parsedSeed) ? -1 : parsedSeed,
+          mock,
+          device
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const sessionId = data.session_id;
+        
+        // Save session ID
+        setCurrentSessionId(sessionId);
+        sessionStorage.setItem('currentGenerationSession', sessionId);
+        
+        setGenStage('Generation started in background...');
+        
+        // Start polling
+        pollSessionStatus(sessionId);
+      } else {
+        setGenError('Failed to start generation session');
+        setGenerating(false);
+      }
+    } catch (err) {
+      setGenError('Failed to start generation session');
+      setGenerating(false);
+    }
+  };
+
+  const handleCancelGeneration = async () => {
+    if (!currentSessionId) return;
+
+    try {
+      await fetch('/api/generate-session/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: currentSessionId })
+      });
+
+      setGenerating(false);
+      setGenStage('');
+      setGenError('Generation cancelled');
+      setCurrentSessionId(null);
+      sessionStorage.removeItem('currentGenerationSession');
+    } catch (err) {
+      console.error('Cancel failed:', err);
+    }
+  };
   useEffect(() => {
     fetchHealth(true);
     
@@ -278,97 +455,7 @@ export default function LumaForgePlayground() {
     }
   };
 
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!prompt.trim()) return;
-    if (playgroundMode === 'img2img' && !uploadedImage) {
-      setGenError('Image-to-Image mode requires uploading a source image first.');
-      return;
-    }
-
-    setGenerating(true);
-    setGenError(null);
-    setGenResult(null);
-
-    // Simulate pipeline stages visually for tactile feedback
-    const stages = playgroundMode === 'img2img' ? [
-      'Scanning safety filters & censorship parameters...',
-      'Decoding base64 input frame...',
-      'Expanding prompt variables via Ollama adapter...',
-      'Allocating PyTorch MPS unified memory buffers...',
-      'Executing image-to-image blend diffusion...',
-      'Constructing image pixels and applying programmatic typography overlays...',
-      'Injecting premium LumaForge watermark...'
-    ] : [
-      'Scanning safety filters & censorship parameters...',
-      'Expanding prompt variables via Ollama adapter...',
-      'Allocating PyTorch MPS unified memory buffers...',
-      'Executing rectified flow sampling steps...',
-      'Constructing image pixels and applying programmatic typography overlays...',
-      'Injecting premium LumaForge watermark...'
-    ];
-
-    let currentStage = 0;
-    setGenStage(stages[0]);
-
-    const stageInterval = setInterval(() => {
-      if (currentStage < stages.length - 1) {
-        currentStage++;
-        setGenStage(stages[currentStage]);
-      }
-    }, mock ? 300 : 2500);
-
-    try {
-      const parsedSeed = typeof seed === 'string' ? parseInt(seed) : seed;
-      
-      const endpoint = playgroundMode === 'img2img' ? '/api/generate-img2img' : '/api/generate';
-      const requestBody: any = {
-        prompt,
-        mode,
-        steps,
-        guidance_scale: cfg,
-        negative_prompt: negativePrompt,
-        seed: isNaN(parsedSeed) ? -1 : parsedSeed,
-        mock,
-        device
-      };
-
-      if (playgroundMode === 'img2img') {
-        requestBody.image_b64 = uploadedImage;
-        requestBody.strength = strength;
-      } else {
-        requestBody.aspect_ratio = aspectRatio;
-      }
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-
-      clearInterval(stageInterval);
-
-      if (res.ok) {
-        const data: GenerateResponse = await res.json();
-        if (data.status === 'REFUSED') {
-          setGenError(data.error || 'Censorship block: Prompt violates local safety guidelines.');
-        } else {
-          setGenResult(data);
-        }
-      } else if (res.status === 429) {
-        const data = await res.json();
-        setGenError(data.detail?.message || 'Rate limit exceeded. Please wait before generating again.');
-      } else {
-        const err = await res.json();
-        setGenError(err.message || 'Generation engine failure.');
-      }
-    } catch (err: any) {
-      clearInterval(stageInterval);
-      setGenError('Failed to establish connection with the local model server.');
-    } finally {
-      setGenerating(false);
-    }
-  };
+  const handleGenerate = handleGenerateWithSession;  // Use session-based generation
 
   const handleUpscale = async () => {
     if (!genResult?.image_b64 || upscaling) return;
@@ -416,6 +503,16 @@ export default function LumaForgePlayground() {
     } finally {
       setUpscaling(false);
     }
+  };
+
+  const handleDownload = () => {
+    if (!genResult?.image_b64) return;
+    const link = document.createElement('a');
+    link.href = genResult.image_b64;
+    link.download = `lumaforge_gen_${genResult.generation_metadata?.seed || 'output'}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleRemoveBackground = async () => {
@@ -504,15 +601,510 @@ export default function LumaForgePlayground() {
     }
   };
 
-  const handleDownload = () => {
+  const handleApplyEffect = async () => {
     if (!genResult?.image_b64) return;
-    const link = document.createElement('a');
-    link.href = genResult.image_b64;
-    link.download = `lumaforge_gen_${genResult.generation_metadata?.seed || 'output'}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    
+    try {
+      const params = effectParams[selectedEffect];
+      const res = await fetch('/api/enhance/effects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_b64: genResult.image_b64,
+          effect_type: selectedEffect,
+          intensity: 0.5,
+          params
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setGenResult(prev => {
+          if (!prev) return null;
+          return { ...prev, image_b64: data.image_b64 };
+        });
+      } else {
+        setGenError('Failed to apply effect');
+      }
+    } catch (err) {
+      setGenError('Error applying effect');
+    }
   };
+
+  // NEW: Coherence Check Handler
+  const handleCoherenceCheck = async (promptToCheck: string) => {
+    try {
+      const res = await fetch('/api/coherence-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptToCheck })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        console.log('✅ Coherence Check Result:', {
+          score: data.coherence_score,
+          level: data.coherence_level,
+          enhanced: data.enhancement_needed,
+          recommendation: data.recommendation
+        });
+        
+        // Return the result for display
+        return data;
+      } else {
+        console.error('Coherence check failed:', res.status);
+        return null;
+      }
+    } catch (err) {
+      console.error('Error checking coherence:', err);
+      return null;
+    }
+  };
+
+  // NEW: Enhance Image Handler
+  const handleEnhanceImage = async (enhancementLevel: string = 'high') => {
+    if (!genResult?.image_b64) {
+      setGenError('No image to enhance');
+      return;
+    }
+
+    try {
+      setGenerating(true);
+      setGenError(null);
+      setGenStage('Enhancing image quality and removing artifacts...');
+
+      const res = await fetch('/api/enhance-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_b64: genResult.image_b64,
+          enhancement_level: enhancementLevel
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setGenResult(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            image_b64: data.image_b64,
+            enhancement_metadata: {
+              original_size: data.original_size,
+              enhanced_size: data.enhanced_size,
+              enhancement_level: data.enhancement_level
+            }
+          };
+        });
+        setGenStage('');
+        console.log('✅ Image enhanced successfully');
+      } else {
+        setGenError('Image enhancement failed');
+      }
+    } catch (err) {
+      setGenError('Error enhancing image');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // NEW: Enhance Zoom Handler
+  const handleEnhanceZoom = async (zoomLevel: number = 2) => {
+    if (!genResult?.image_b64) {
+      setGenError('No image for zoom enhancement');
+      return;
+    }
+
+    try {
+      setGenerating(true);
+      setGenError(null);
+      setGenStage(`Enhancing for ${zoomLevel}x zoom quality...`);
+
+      const res = await fetch('/api/enhance-zoom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_b64: genResult.image_b64,
+          zoom_level: zoomLevel
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setGenResult(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            image_b64: data.image_b64,
+            zoom_metadata: {
+              original_size: data.original_size,
+              enhanced_size: data.enhanced_size,
+              zoom_level: data.zoom_level
+            }
+          };
+        });
+        setGenStage('');
+        console.log('✅ Zoom quality enhanced - pixelation removed');
+      } else {
+        setGenError('Zoom enhancement failed');
+      }
+    } catch (err) {
+      setGenError('Error enhancing zoom quality');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // NEW: Remove Pixelation Handler
+  const handleRemovePixelation = async () => {
+    if (!genResult?.image_b64) {
+      setGenError('No image to clean');
+      return;
+    }
+
+    try {
+      setGenerating(true);
+      setGenError(null);
+      setGenStage('Removing pixelation and artifacts...');
+
+      const res = await fetch('/api/remove-pixelation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_b64: genResult.image_b64
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setGenResult(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            image_b64: data.image_b64
+          };
+        });
+        setGenStage('');
+        console.log('✅ Pixelation removed');
+      } else {
+        setGenError('Pixelation removal failed');
+      }
+    } catch (err) {
+      setGenError('Error removing pixelation');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // NEW: Colorize Handler
+  const handleColorize = async () => {
+    if (!genResult?.image_b64) {
+      setGenError('No image to colorize');
+      return;
+    }
+
+    try {
+      setColorizing(true);
+      setGenError(null);
+      setGenStage(`Colorizing image in ${colorizeStyle} style...`);
+
+      const res = await fetch('/api/colorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_b64: genResult.image_b64,
+          color_style: colorizeStyle
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setGenResult(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            image_b64: data.image_b64
+          };
+        });
+        setGenStage('');
+        console.log('✅ Image colorized');
+      } else {
+        setGenError('Colorization failed');
+      }
+    } catch (err) {
+      setGenError('Error colorizing image');
+    } finally {
+      setColorizing(false);
+    }
+  };
+
+  // NEW: Face Restoration Handler
+  const handleRestoreFace = async () => {
+    if (!genResult?.image_b64) {
+      setGenError('No image to restore');
+      return;
+    }
+
+    try {
+      setRestoringFace(true);
+      setGenError(null);
+      setGenStage(`Restoring faces at ${faceRestorationLevel} level...`);
+
+      const res = await fetch('/api/face-restoration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_b64: genResult.image_b64,
+          restoration_level: faceRestorationLevel
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setGenResult(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            image_b64: data.image_b64
+          };
+        });
+        setGenStage('');
+        console.log('✅ Face restored');
+      } else {
+        setGenError('Face restoration failed');
+      }
+    } catch (err) {
+      setGenError('Error restoring face');
+    } finally {
+      setRestoringFace(false);
+    }
+  };
+
+  const handleBatchGenerate = async () => {
+    const validPrompts = batchPrompts.filter(p => p.trim());
+    if (validPrompts.length === 0) {
+      setGenError('Enter at least one prompt for batch generation');
+      return;
+    }
+
+    setBatchGenerating(true);
+    setBatchResults([]);
+
+    try {
+      const res = await fetch('/api/batch/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompts: validPrompts,
+          count: batchCount,
+          steps: steps,
+          guidance_scale: cfg
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setBatchResults(data.results || []);
+      } else {
+        setGenError('Batch generation failed');
+      }
+    } catch (err) {
+      setGenError('Failed to execute batch generation');
+    } finally {
+      setBatchGenerating(false);
+    }
+  };
+
+  const handleSwitchModel = async (modelId: string) => {
+    try {
+      const res = await fetch('/api/models/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model_id: modelId })
+      });
+
+      if (res.ok) {
+        setCurrentModel(modelId);
+        setGenError(null);
+      } else {
+        setGenError('Failed to switch model');
+      }
+    } catch (err) {
+      setGenError('Error switching model');
+    }
+  };
+
+  const handleInpaint = async () => {
+    if (!uploadedImage || !inpaintMask || !prompt.trim()) {
+      setGenError('Need: image, mask, and prompt for inpainting');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/inpaint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_b64: uploadedImage,
+          mask_b64: inpaintMask,
+          prompt: prompt,
+          steps: steps,
+          guidance_scale: cfg
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setGenResult(data);
+      } else {
+        setGenError('Inpainting failed');
+      }
+    } catch (err) {
+      setGenError('Error during inpainting');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleOutpaint = async () => {
+    if (!uploadedImage || !prompt.trim()) {
+      setGenError('Need: image and prompt for outpainting');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/outpaint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_b64: uploadedImage,
+          prompt: prompt,
+          expand_pixels: 256,
+          steps: steps
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setGenResult(data);
+      } else {
+        setGenError('Outpainting failed');
+      }
+    } catch (err) {
+      setGenError('Error during outpainting');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const loadModels = async () => {
+    setLoadingModels(true);
+    try {
+      const res = await fetch('/api/models');
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableModels(data.available_models || []);
+      }
+    } catch (err) {
+      console.error('Failed to load models');
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  const loadAnalytics = async () => {
+    setLoadingAnalytics(true);
+    try {
+      const res = await fetch('/api/analytics/stats');
+      if (res.ok) {
+        const data = await res.json();
+        setAnalyticsData(data);
+      }
+    } catch (err) {
+      console.error('Failed to load analytics');
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
+  const handleDreamboothTrain = async () => {
+    if (dreamboothImages.length < 3) {
+      setGenError('Need at least 3 images for Dreambooth training');
+      return;
+    }
+
+    setDreamboothTraining(true);
+    try {
+      const res = await fetch('/api/dreambooth/train', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          images: dreamboothImages,
+          unique_token: uniqueToken,
+          class_prompt: 'person'
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setDreamboothStatus(data);
+      } else {
+        setGenError('Dreambooth training failed');
+      }
+    } catch (err) {
+      setGenError('Error starting Dreambooth training');
+    } finally {
+      setDreamboothTraining(false);
+    }
+  };
+
+  const handleUpscaleAdvanced = async () => {
+    if (!genResult?.image_b64) return;
+
+    setUpscaling(true);
+    try {
+      const res = await fetch('/api/upscale-advanced', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_b64: genResult.image_b64,
+          scale_factor: 4.0,
+          model_type: 'realesrgan'
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setGenResult(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            image_b64: data.image_b64,
+            generation_metadata: prev.generation_metadata ? {
+              ...prev.generation_metadata,
+              width: data.width,
+              height: data.height
+            } : undefined
+          };
+        });
+      }
+    } catch (err) {
+      setGenError('Advanced upscaling failed');
+    } finally {
+      setUpscaling(false);
+    }
+  };
+
+  // Load models and analytics on mount
+  useEffect(() => {
+    loadModels();
+    if (activeTab === 'analytics') {
+      loadAnalytics();
+    }
+  }, [activeTab]);
+
 
   // Helper for rendering badges
   const renderStatusBadge = (status: string) => {
@@ -549,47 +1141,29 @@ export default function LumaForgePlayground() {
         </div>
 
         {/* Floating Navigation Menu */}
-        <nav className="flex items-center bg-white/5 p-1 rounded-lg border border-white/5">
-          <button 
-            onClick={() => setActiveTab('playground')}
-            className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
-              activeTab === 'playground' 
-                ? 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 shadow-sm border border-cyan-500/20' 
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Playground
-          </button>
-          <button 
-            onClick={() => setActiveTab('training')}
-            className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
-              activeTab === 'training' 
-                ? 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 shadow-sm border border-cyan-500/20' 
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Model Training
-          </button>
-          <button 
-            onClick={() => setActiveTab('audit')}
-            className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
-              activeTab === 'audit' 
-                ? 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 shadow-sm border border-cyan-500/20' 
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Censorship Logs
-          </button>
-          <button 
-            onClick={() => setActiveTab('benchmark')}
-            className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
-              activeTab === 'benchmark' 
-                ? 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 shadow-sm border border-cyan-500/20' 
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Benchmarks
-          </button>
+        <nav className="flex items-center gap-1 bg-white/5 p-1 rounded-lg border border-white/5 overflow-x-auto max-w-[800px]">
+          {['playground', 'editor', 'effects', 'batch', 'dreambooth', 'models', 'training', 'audit', 'analytics', 'benchmark'].map((tab) => (
+            <button 
+              key={tab}
+              onClick={() => setActiveTab(tab as any)}
+              className={`px-2 py-1 text-xs rounded-md font-medium transition-all whitespace-nowrap ${
+                activeTab === tab
+                  ? 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 shadow-sm border border-cyan-500/20' 
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              {tab === 'playground' && '🎨 Playground'}
+              {tab === 'editor' && '✏️ Editor'}
+              {tab === 'effects' && '✨ Effects'}
+              {tab === 'batch' && '📦 Batch'}
+              {tab === 'dreambooth' && '🎭 Dreambooth'}
+              {tab === 'models' && '🤖 Models'}
+              {tab === 'training' && '⚙️ Training'}
+              {tab === 'audit' && '🛡️ Audit'}
+              {tab === 'analytics' && '📊 Analytics'}
+              {tab === 'benchmark' && '⚡ Bench'}
+            </button>
+          ))}
         </nav>
 
         {/* Server Status indicator */}
@@ -1020,22 +1594,22 @@ export default function LumaForgePlayground() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center font-mono">
                     <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                       <p className="text-[10px] text-zinc-500">LATENCY</p>
-                      <p className="text-md font-bold text-cyan-400">{genResult.generation_metadata?.latency_sec.toFixed(2)}s</p>
+                      <p className="text-md font-bold text-cyan-400">{(genResult.generation_metadata?.latency_sec ?? 0).toFixed(2)}s</p>
                     </div>
                     <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                       <p className="text-[10px] text-zinc-500">MEMORY DELTA</p>
-                      <p className="text-md font-bold text-cyan-400">{genResult.generation_metadata?.memory_used_mb.toFixed(1)} MB</p>
+                      <p className="text-md font-bold text-cyan-400">{(genResult.generation_metadata?.memory_used_mb ?? 0).toFixed(1)} MB</p>
                     </div>
                     <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                       <p className="text-[10px] text-zinc-500">SEED VALUE</p>
-                      <p className="text-md font-bold text-cyan-400 truncate max-w-full" title={genResult.generation_metadata?.seed.toString()}>
-                        {genResult.generation_metadata?.seed}
+                      <p className="text-md font-bold text-cyan-400 truncate max-w-full" title={(genResult.generation_metadata?.seed ?? 0).toString()}>
+                        {genResult.generation_metadata?.seed ?? 0}
                       </p>
                     </div>
                     <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                       <p className="text-[10px] text-zinc-500">RESOLUTION</p>
                       <p className="text-md font-bold text-cyan-400">
-                        {genResult.generation_metadata?.width}x{genResult.generation_metadata?.height}
+                        {genResult.generation_metadata?.width ?? 0}x{genResult.generation_metadata?.height ?? 0}
                       </p>
                     </div>
                   </div>
@@ -1079,7 +1653,7 @@ export default function LumaForgePlayground() {
                           <span className="text-zinc-500 font-mono text-[10px]">INPUT MODERATION</span>
                           <div className="flex items-center gap-2 mt-1">
                             {renderStatusBadge(genResult.prompt_metadata.status)}
-                            <span className="font-mono text-[10px] text-zinc-400">({genResult.prompt_metadata.latency_ms.toFixed(0)}ms)</span>
+                            <span className="font-mono text-[10px] text-zinc-400">({(genResult.prompt_metadata?.latency_ms ?? 0).toFixed(0)}ms)</span>
                           </div>
                           <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed"><span className="text-zinc-500 font-semibold">Classification:</span> {genResult.prompt_metadata.reason}</p>
                         </div>
@@ -1089,7 +1663,7 @@ export default function LumaForgePlayground() {
                             <span className="text-zinc-500 font-mono text-[10px]">POST-GENERATION SAFETY</span>
                             <div className="flex items-center gap-2 mt-1">
                               {renderStatusBadge(genResult.safety_check.status)}
-                              <span className="font-mono text-[10px] text-zinc-400">({genResult.safety_check.latency_ms.toFixed(0)}ms)</span>
+                              <span className="font-mono text-[10px] text-zinc-400">({(genResult.safety_check?.latency_ms ?? 0).toFixed(0)}ms)</span>
                             </div>
                             <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed"><span className="text-zinc-500 font-semibold">Check:</span> {genResult.safety_check.reason}</p>
                           </div>
@@ -1100,6 +1674,299 @@ export default function LumaForgePlayground() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* IMAGE EDITOR TAB - Inpainting/Outpainting */}
+        {activeTab === 'editor' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="lg:col-span-4 glass-panel rounded-2xl p-6 flex flex-col gap-4">
+              <h2 className="font-bold text-sm">Image Editor</h2>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditorMode('inpaint')}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                    editorMode === 'inpaint' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'bg-white/5 text-zinc-400'
+                  }`}
+                >
+                  Inpaint
+                </button>
+                <button
+                  onClick={() => setEditorMode('outpaint')}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                    editorMode === 'outpaint' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'bg-white/5 text-zinc-400'
+                  }`}
+                >
+                  Outpaint
+                </button>
+              </div>
+
+              {!uploadedImage ? (
+                <div
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  className="border border-dashed border-white/15 rounded-xl p-4 text-center cursor-pointer hover:border-cyan-500/50"
+                >
+                  <Upload className="w-6 h-6 text-zinc-500 mx-auto mb-2" />
+                  <p className="text-xs text-zinc-400">Drag & drop image</p>
+                </div>
+              ) : (
+                <div className="relative rounded-xl overflow-hidden border border-white/10 aspect-square max-h-[150px]">
+                  <img src={uploadedImage} alt="preview" className="w-full h-full object-contain" />
+                </div>
+              )}
+
+              <textarea 
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={editorMode === 'inpaint' ? 'Describe what to fill in...' : 'Describe the extension...'}
+                rows={3}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500/50"
+              />
+
+              <button
+                onClick={editorMode === 'inpaint' ? handleInpaint : handleOutpaint}
+                disabled={!uploadedImage || !prompt.trim()}
+                className="w-full py-2.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg text-xs font-semibold disabled:opacity-50"
+              >
+                {editorMode === 'inpaint' ? 'Inpaint Region' : 'Extend Canvas'}
+              </button>
+            </div>
+
+            {genResult?.image_b64 && (
+              <div className="lg:col-span-8 glass-panel rounded-2xl p-6">
+                <img src={genResult.image_b64} alt="result" className="w-full rounded-lg" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* EFFECTS TAB */}
+        {activeTab === 'effects' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="lg:col-span-4 glass-panel rounded-2xl p-6 flex flex-col gap-4">
+              <h2 className="font-bold text-sm">Apply Effects</h2>
+              
+              <div>
+                <label className="text-xs text-zinc-400 font-semibold">Select Effect</label>
+                <select 
+                  value={selectedEffect}
+                  onChange={(e: any) => setSelectedEffect(e.target.value)}
+                  className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-300"
+                >
+                  <option value="depth-of-field">Depth of Field</option>
+                  <option value="film-grain">Film Grain</option>
+                  <option value="chromatic-aberration">Chromatic Aberration</option>
+                  <option value="lens-flare">Lens Flare</option>
+                </select>
+              </div>
+
+              <button
+                onClick={handleApplyEffect}
+                disabled={!genResult?.image_b64}
+                className="w-full py-2.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg text-xs font-semibold disabled:opacity-50"
+              >
+                Apply Effect
+              </button>
+            </div>
+
+            {genResult?.image_b64 && (
+              <div className="lg:col-span-8 glass-panel rounded-2xl p-6">
+                <img src={genResult.image_b64} alt="result" className="w-full rounded-lg" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* BATCH GENERATION TAB */}
+        {activeTab === 'batch' && (
+          <div className="glass-panel rounded-2xl p-6 flex flex-col gap-6">
+            <h2 className="font-bold text-lg">Batch Generation</h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {batchPrompts.map((p, i) => (
+                <textarea
+                  key={i}
+                  value={p}
+                  onChange={(e) => {
+                    const newPrompts = [...batchPrompts];
+                    newPrompts[i] = e.target.value;
+                    setBatchPrompts(newPrompts);
+                  }}
+                  placeholder={`Prompt ${i + 1}`}
+                  rows={3}
+                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500/50"
+                />
+              ))}
+            </div>
+
+            <div className="flex items-center gap-4">
+              <label className="text-sm text-zinc-400">
+                Images per prompt: 
+                <input
+                  type="number"
+                  value={batchCount}
+                  onChange={(e) => setBatchCount(parseInt(e.target.value))}
+                  min="1"
+                  max="10"
+                  className="ml-2 w-16 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs"
+                />
+              </label>
+              <button
+                onClick={handleBatchGenerate}
+                disabled={batchGenerating}
+                className="ml-auto px-6 py-2.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg text-sm font-semibold disabled:opacity-50"
+              >
+                {batchGenerating ? 'Generating...' : 'Start Batch'}
+              </button>
+            </div>
+
+            {batchResults.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                {batchResults.map((result, i) => (
+                  <div key={i} className="rounded-lg overflow-hidden border border-white/10">
+                    <img src={result.image_b64} alt={`batch-${i}`} className="w-full aspect-square object-cover" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* DREAMBOOTH TAB */}
+        {activeTab === 'dreambooth' && (
+          <div className="glass-panel rounded-2xl p-6 flex flex-col gap-6">
+            <div>
+              <h2 className="font-bold text-lg mb-2">Dreambooth Training</h2>
+              <p className="text-xs text-zinc-400">Train a personalized model in 3-5 minutes with 3-10 images</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  onClick={() => document.getElementById(`dreambooth-upload-${i}`)?.click()}
+                  className="border-2 border-dashed border-white/15 rounded-lg p-6 text-center cursor-pointer hover:border-cyan-500/50 transition-all aspect-square flex flex-col items-center justify-center"
+                >
+                  {dreamboothImages[i] ? (
+                    <img src={dreamboothImages[i]} alt={`db-${i}`} className="w-full h-full object-cover rounded" />
+                  ) : (
+                    <>
+                      <Upload className="w-6 h-6 text-zinc-500 mb-2" />
+                      <span className="text-xs text-zinc-400">Image {i + 1}</span>
+                    </>
+                  )}
+                  <input
+                    id={`dreambooth-upload-${i}`}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          const newImages = [...dreamboothImages];
+                          newImages[i] = reader.result as string;
+                          setDreamboothImages(newImages);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <label className="text-xs text-zinc-400 font-semibold">Unique Token (for generation)</label>
+              <input
+                type="text"
+                value={uniqueToken}
+                onChange={(e) => setUniqueToken(e.target.value)}
+                className="w-full mt-2 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm"
+                placeholder="e.g. sks person"
+              />
+            </div>
+
+            <button
+              onClick={handleDreamboothTrain}
+              disabled={dreamboothTraining || dreamboothImages.length < 3}
+              className="w-full py-3 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg font-semibold disabled:opacity-50"
+            >
+              {dreamboothTraining ? 'Training...' : `Start Dreambooth Training (${dreamboothImages.filter(i => i).length} images)`}
+            </button>
+
+            {dreamboothStatus && (
+              <div className="bg-white/5 border border-white/10 rounded-lg p-4 text-sm">
+                <p><strong>Status:</strong> {dreamboothStatus.status}</p>
+                <p><strong>Progress:</strong> {dreamboothStatus.progress || 0}%</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MODELS TAB */}
+        {activeTab === 'models' && (
+          <div className="glass-panel rounded-2xl p-6 flex flex-col gap-6">
+            <h2 className="font-bold text-lg">Model Selection</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {availableModels.map((model) => (
+                <div
+                  key={model.id}
+                  onClick={() => handleSwitchModel(model.id)}
+                  className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                    currentModel === model.id
+                      ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'
+                      : 'bg-white/5 border-white/10 text-zinc-400 hover:border-white/20'
+                  }`}
+                >
+                  <h3 className="font-semibold text-sm mb-2">{model.name}</h3>
+                  <p className="text-xs text-zinc-500">Quality: {model.quality}</p>
+                  <p className="text-xs text-zinc-500">Speed: {model.speed}</p>
+                  <p className="text-xs text-zinc-500">VRAM: {model.vram_mb}MB</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ANALYTICS TAB */}
+        {activeTab === 'analytics' && (
+          <div className="glass-panel rounded-2xl p-6 flex flex-col gap-6">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-lg">Analytics Dashboard</h2>
+              <button
+                onClick={loadAnalytics}
+                disabled={loadingAnalytics}
+                className="px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg text-xs font-semibold"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {analyticsData && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                  <p className="text-xs text-zinc-400">Total Generations</p>
+                  <p className="text-2xl font-bold text-cyan-400">{analyticsData.total_generations || 0}</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                  <p className="text-xs text-zinc-400">Avg Time (s)</p>
+                  <p className="text-2xl font-bold text-cyan-400">{(analyticsData.avg_generation_time || 0).toFixed(1)}</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                  <p className="text-xs text-zinc-400">GPU Util %</p>
+                  <p className="text-2xl font-bold text-cyan-400">{((analyticsData.gpu_utilization || 0) * 100).toFixed(0)}</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                  <p className="text-xs text-zinc-400">Requests/hr</p>
+                  <p className="text-2xl font-bold text-cyan-400">{analyticsData.requests_last_hour || 0}</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
