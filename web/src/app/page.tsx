@@ -140,7 +140,7 @@ export default function LumaForgePlayground() {
   const [cfg, setCfg] = useState(7.5);
   const [negativePrompt, setNegativePrompt] = useState('');
   const [seed, setSeed] = useState<number | string>(-1);
-  const [mock, setMock] = useState(false); // Use real model for photorealistic output
+  const [mock, setMock] = useState(true); // Mock mode enabled by default for fast testing
   const [device, setDevice] = useState('mps');
 
   // Generation Results
@@ -1411,6 +1411,203 @@ export default function LumaForgePlayground() {
                     onChange={(e) => setCfg(parseFloat(e.target.value))}
                     className="w-full accent-cyan-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
                   />
+                </div>
+              </div>
+
+              {/* Category Selection (v1.1) */}
+              <div className="grid grid-cols-2 gap-3 py-2 border-t border-white/5">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-zinc-400">Generation Category</label>
+                  <select 
+                    value={selectedCategory || ''}
+                    onChange={(e) => {
+                      const cat = e.target.value || null;
+                      setSelectedCategory(cat);
+                      setSelectedSubcategory(null);
+                    }}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-cyan-500/50 text-zinc-300"
+                  >
+                    <option value="" className="bg-[#121218] text-zinc-500">-- None --</option>
+                    <option value="creative_art" className="bg-[#121218] text-white">🎨 Creative Art</option>
+                    <option value="characters" className="bg-[#121218] text-white">👤 Characters</option>
+                    <option value="landscapes" className="bg-[#121218] text-white">🏔️ Landscapes</option>
+                    <option value="architecture" className="bg-[#121218] text-white">🏛️ Architecture</option>
+                    <option value="vehicles" className="bg-[#121218] text-white">🚗 Vehicles</option>
+                    <option value="products" className="bg-[#121218] text-white">📦 Products</option>
+                    <option value="marketing" className="bg-[#121218] text-white">📢 Marketing</option>
+                    <option value="food" className="bg-[#121218] text-white">🍰 Food</option>
+                    <option value="fashion" className="bg-[#121218] text-white">👗 Fashion</option>
+                    <option value="gaming" className="bg-[#121218] text-white">🎮 Gaming</option>
+                    <option value="animals" className="bg-[#121218] text-white">🐾 Animals</option>
+                    <option value="events" className="bg-[#121218] text-white">🎉 Events</option>
+                    <option value="business" className="bg-[#121218] text-white">💼 Business</option>
+                    <option value="education" className="bg-[#121218] text-white">📚 Education</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-zinc-400">Subcategory Style</label>
+                  <select 
+                    value={selectedSubcategory || ''}
+                    onChange={(e) => setSelectedSubcategory(e.target.value || null)}
+                    disabled={!selectedCategory}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-cyan-500/50 text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <option value="" className="bg-[#121218] text-zinc-500">-- Select subcategory --</option>
+                    {selectedCategory === 'creative_art' && (
+                      <>
+                        <option value="Digital Art" className="bg-[#121218] text-white">Digital Art</option>
+                        <option value="Concept Art" className="bg-[#121218] text-white">Concept Art</option>
+                        <option value="Fantasy" className="bg-[#121218] text-white">Fantasy</option>
+                        <option value="Sci-Fi" className="bg-[#121218] text-white">Sci-Fi</option>
+                        <option value="Surreal" className="bg-[#121218] text-white">Surreal</option>
+                        <option value="Abstract" className="bg-[#121218] text-white">Abstract</option>
+                        <option value="Matte Painting" className="bg-[#121218] text-white">Matte Painting</option>
+                      </>
+                    )}
+                    {selectedCategory === 'characters' && (
+                      <>
+                        <option value="Anime" className="bg-[#121218] text-white">Anime</option>
+                        <option value="Realistic" className="bg-[#121218] text-white">Realistic</option>
+                        <option value="Cartoon" className="bg-[#121218] text-white">Cartoon</option>
+                        <option value="Game Character" className="bg-[#121218] text-white">Game Character</option>
+                        <option value="Superhero" className="bg-[#121218] text-white">Superhero</option>
+                        <option value="Medieval" className="bg-[#121218] text-white">Medieval</option>
+                        <option value="Cyberpunk" className="bg-[#121218] text-white">Cyberpunk</option>
+                        <option value="Pixel Art" className="bg-[#121218] text-white">Pixel Art</option>
+                      </>
+                    )}
+                    {selectedCategory === 'landscapes' && (
+                      <>
+                        <option value="Mountains" className="bg-[#121218] text-white">Mountains</option>
+                        <option value="Forests" className="bg-[#121218] text-white">Forests</option>
+                        <option value="Beaches" className="bg-[#121218] text-white">Beaches</option>
+                        <option value="Waterfalls" className="bg-[#121218] text-white">Waterfalls</option>
+                        <option value="Desert" className="bg-[#121218] text-white">Desert</option>
+                        <option value="Snow" className="bg-[#121218] text-white">Snow Landscape</option>
+                        <option value="Space" className="bg-[#121218] text-white">Space</option>
+                        <option value="Underwater" className="bg-[#121218] text-white">Underwater</option>
+                      </>
+                    )}
+                    {selectedCategory === 'architecture' && (
+                      <>
+                        <option value="Modern" className="bg-[#121218] text-white">Modern</option>
+                        <option value="Futuristic" className="bg-[#121218] text-white">Futuristic</option>
+                        <option value="Ancient" className="bg-[#121218] text-white">Ancient</option>
+                        <option value="Interior" className="bg-[#121218] text-white">Interior Design</option>
+                        <option value="Luxury" className="bg-[#121218] text-white">Luxury Architecture</option>
+                        <option value="Office" className="bg-[#121218] text-white">Office Space</option>
+                        <option value="Smart" className="bg-[#121218] text-white">Smart Building</option>
+                        <option value="Castles" className="bg-[#121218] text-white">Castles</option>
+                      </>
+                    )}
+                    {selectedCategory === 'vehicles' && (
+                      <>
+                        <option value="Sports Cars" className="bg-[#121218] text-white">Sports Cars</option>
+                        <option value="Luxury" className="bg-[#121218] text-white">Luxury Vehicles</option>
+                        <option value="Motorcycles" className="bg-[#121218] text-white">Motorcycles</option>
+                        <option value="Aircraft" className="bg-[#121218] text-white">Aircraft</option>
+                        <option value="Spacecraft" className="bg-[#121218] text-white">Spacecraft</option>
+                        <option value="Ships" className="bg-[#121218] text-white">Ships</option>
+                        <option value="Military" className="bg-[#121218] text-white">Military Vehicles</option>
+                      </>
+                    )}
+                    {selectedCategory === 'products' && (
+                      <>
+                        <option value="Mockups" className="bg-[#121218] text-white">Product Mockups</option>
+                        <option value="Furniture" className="bg-[#121218] text-white">Furniture</option>
+                        <option value="Shoes" className="bg-[#121218] text-white">Shoes</option>
+                        <option value="Watches" className="bg-[#121218] text-white">Watches</option>
+                        <option value="Electronics" className="bg-[#121218] text-white">Electronics</option>
+                        <option value="Perfume" className="bg-[#121218] text-white">Perfume</option>
+                        <option value="Packaging" className="bg-[#121218] text-white">Packaging Design</option>
+                        <option value="Cosmetics" className="bg-[#121218] text-white">Cosmetics</option>
+                      </>
+                    )}
+                    {selectedCategory === 'marketing' && (
+                      <>
+                        <option value="Posters" className="bg-[#121218] text-white">Posters</option>
+                        <option value="Flyers" className="bg-[#121218] text-white">Flyers</option>
+                        <option value="Social" className="bg-[#121218] text-white">Social Media</option>
+                        <option value="Thumbnails" className="bg-[#121218] text-white">Thumbnails</option>
+                        <option value="Book Covers" className="bg-[#121218] text-white">Book Covers</option>
+                        <option value="Magazines" className="bg-[#121218] text-white">Magazine Covers</option>
+                        <option value="Banners" className="bg-[#121218] text-white">Banners</option>
+                        <option value="Ads" className="bg-[#121218] text-white">Advertisements</option>
+                      </>
+                    )}
+                    {selectedCategory === 'food' && (
+                      <>
+                        <option value="Dishes" className="bg-[#121218] text-white">Dishes</option>
+                        <option value="Desserts" className="bg-[#121218] text-white">Desserts</option>
+                        <option value="Beverages" className="bg-[#121218] text-white">Beverages</option>
+                        <option value="Cakes" className="bg-[#121218] text-white">Cakes</option>
+                        <option value="Fast Food" className="bg-[#121218] text-white">Fast Food</option>
+                        <option value="Gourmet" className="bg-[#121218] text-white">Gourmet Cuisine</option>
+                        <option value="Recipes" className="bg-[#121218] text-white">Recipes</option>
+                      </>
+                    )}
+                    {selectedCategory === 'fashion' && (
+                      <>
+                        <option value="Clothing" className="bg-[#121218] text-white">Clothing</option>
+                        <option value="Dresses" className="bg-[#121218] text-white">Dresses</option>
+                        <option value="Jackets" className="bg-[#121218] text-white">Jackets</option>
+                        <option value="Sneakers" className="bg-[#121218] text-white">Sneakers</option>
+                        <option value="Jewelry" className="bg-[#121218] text-white">Jewelry</option>
+                        <option value="Accessories" className="bg-[#121218] text-white">Accessories</option>
+                        <option value="Runway" className="bg-[#121218] text-white">Runway</option>
+                      </>
+                    )}
+                    {selectedCategory === 'gaming' && (
+                      <>
+                        <option value="Icons" className="bg-[#121218] text-white">Game Icons</option>
+                        <option value="UI" className="bg-[#121218] text-white">Game UI</option>
+                        <option value="Backgrounds" className="bg-[#121218] text-white">Game Backgrounds</option>
+                        <option value="NPCs" className="bg-[#121218] text-white">NPCs</option>
+                        <option value="Weapons" className="bg-[#121218] text-white">Game Weapons</option>
+                        <option value="Effects" className="bg-[#121218] text-white">Visual Effects</option>
+                        <option value="Inventory" className="bg-[#121218] text-white">Game Inventory</option>
+                      </>
+                    )}
+                    {selectedCategory === 'animals' && (
+                      <>
+                        <option value="Pets" className="bg-[#121218] text-white">Pets</option>
+                        <option value="Wildlife" className="bg-[#121218] text-white">Wildlife</option>
+                        <option value="Birds" className="bg-[#121218] text-white">Birds</option>
+                        <option value="Marine" className="bg-[#121218] text-white">Marine Life</option>
+                        <option value="Fantasy" className="bg-[#121218] text-white">Fantasy Animals</option>
+                        <option value="Dragons" className="bg-[#121218] text-white">Dragons</option>
+                        <option value="Mythical" className="bg-[#121218] text-white">Mythical Creatures</option>
+                      </>
+                    )}
+                    {selectedCategory === 'events' && (
+                      <>
+                        <option value="Weddings" className="bg-[#121218] text-white">Weddings</option>
+                        <option value="Birthdays" className="bg-[#121218] text-white">Birthdays</option>
+                        <option value="Festivals" className="bg-[#121218] text-white">Festivals</option>
+                        <option value="Holidays" className="bg-[#121218] text-white">Holidays</option>
+                        <option value="Parties" className="bg-[#121218] text-white">Parties</option>
+                      </>
+                    )}
+                    {selectedCategory === 'business' && (
+                      <>
+                        <option value="Infographics" className="bg-[#121218] text-white">Infographics</option>
+                        <option value="Presentations" className="bg-[#121218] text-white">Presentations</option>
+                        <option value="Dashboards" className="bg-[#121218] text-white">Dashboards</option>
+                        <option value="Banners" className="bg-[#121218] text-white">Banners</option>
+                        <option value="Branding" className="bg-[#121218] text-white">Branding</option>
+                      </>
+                    )}
+                    {selectedCategory === 'education' && (
+                      <>
+                        <option value="Scientific" className="bg-[#121218] text-white">Scientific</option>
+                        <option value="Biology" className="bg-[#121218] text-white">Biology</option>
+                        <option value="History" className="bg-[#121218] text-white">History</option>
+                        <option value="Geography" className="bg-[#121218] text-white">Geography</option>
+                        <option value="Medical" className="bg-[#121218] text-white">Medical</option>
+                      </>
+                    )}
+                  </select>
                 </div>
               </div>
 

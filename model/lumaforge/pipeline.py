@@ -18,12 +18,19 @@ class LumaForgePipeline:
             return True
             
         print(f"[LumaForgePipeline] Loading diffusers model '{self.model_id}' onto {self.device}...")
+        print(f"[LumaForgePipeline] WARNING: Large model download (4GB+) may take 5-10 minutes on first run")
         try:
             from diffusers import StableDiffusionPipeline
+            import signal
+            
+            # Set timeout for model download (10 minutes)
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Model download timeout - exceeded 10 minutes")
             
             # Use float32 to prevent NaN overflow issues on Apple Silicon MPS
             torch_dtype = torch.float32
             
+            print(f"[LumaForgePipeline] Downloading model from Hugging Face...")
             self.pipe = StableDiffusionPipeline.from_pretrained(
                 self.model_id,
                 torch_dtype=torch_dtype,
@@ -31,7 +38,9 @@ class LumaForgePipeline:
                 safety_checker=None,
                 requires_safety_checker=False
             )
+            print(f"[LumaForgePipeline] Moving pipeline to {self.device}...")
             self.pipe.to(self.device)
+            print(f"[LumaForgePipeline] Pipeline successfully moved to {self.device}")
             
             # Load fine-tuned weights if they exist and are a valid PyTorch state dict
             lora_path = "weights/lumaforge_lora.safetensors"
@@ -50,13 +59,21 @@ class LumaForgePipeline:
             
             # Memory optimization for Apple Silicon
             if self.device == "mps":
+                print(f"[LumaForgePipeline] Enabling attention slicing for MPS memory optimization...")
                 self.pipe.enable_attention_slicing()
+                print(f"[LumaForgePipeline] Attention slicing enabled.")
                 
             self.is_loaded = True
-            print("[LumaForgePipeline] Model successfully loaded.")
+            print("[LumaForgePipeline] Model successfully loaded and ready for inference.")
             return True
+        except TimeoutError as e:
+            print(f"[LumaForgePipeline Error] Model loading timeout: {e}")
+            print(f"[LumaForgePipeline] Please use mock=True for faster testing")
+            self.is_loaded = False
+            return False
         except Exception as e:
             print(f"[LumaForgePipeline Error] Failed to load model: {e}")
+            print(f"[LumaForgePipeline] Falling back to mock mode. To use real model, ensure model is downloaded and try again.")
             self.is_loaded = False
             return False
 
@@ -87,6 +104,7 @@ class LumaForgePipeline:
             titles = re.findall(r"'([^']+)'", prompt)
         
         if mock:
+            print(f"[LumaForgePipeline] Generating mock image (steps={steps}, guidance={guidance_scale})")
             image = self._generate_mock_image(prompt, width, height, aspect_ratio, seed)
             used_mock = True
             # Simulate processing time
@@ -116,6 +134,7 @@ class LumaForgePipeline:
                 time.sleep(1.5)
             else:
                 try:
+                    print(f"[LumaForgePipeline] Running inference (steps={steps}, guidance_scale={guidance_scale}, seed={seed})")
                     generator = torch.Generator(device=self.device).manual_seed(seed)
                     # Run diffusion
                     output = self.pipe(
@@ -128,6 +147,7 @@ class LumaForgePipeline:
                         generator=generator
                     )
                     image = output.images[0]
+                    print(f"[LumaForgePipeline] Inference completed successfully")
                 except Exception as e:
                     print(f"[LumaForgePipeline Error] Inference failed: {e}. Falling back to mock image.")
                     image = self._generate_mock_image(prompt, width, height, aspect_ratio, seed)
@@ -150,6 +170,8 @@ class LumaForgePipeline:
             
         # Apply LumaForge low-transparency watermark logo overlay
         image = self._overlay_lumaforge_logo(image)
+        
+        print(f"[LumaForgePipeline] Generation complete: {latency_sec:.2f}s, memory={memory_used_mb:.1f}MB, used_mock={used_mock}")
         
         return {
             "image": image,

@@ -6,6 +6,7 @@ class OllamaClient:
     def __init__(self, host="http://localhost:11434", model="llama3.2:1b"):
         self.host = host.rstrip('/')
         self.model = model
+        print(f"[OllamaClient] Initialized with model: {self.model}")
 
     def _call_api(self, endpoint, data):
         url = f"{self.host}{endpoint}"
@@ -16,18 +17,23 @@ class OllamaClient:
             headers={"Content-Type": "application/json"}
         )
         try:
-            with urllib.request.urlopen(req, timeout=35) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 return json.loads(response.read().decode("utf-8"))
-        except urllib.error.URLError as e:
+        except (urllib.error.URLError, TimeoutError) as e:
             # If Ollama is offline or times out, return None
-            print(f"[OllamaClient Warning] Failed to connect to Ollama: {e}")
+            print(f"[OllamaClient Warning] Failed to connect to Ollama (using fallback): {type(e).__name__}")
             return None
 
     def check_connection(self):
         """Check if Ollama is running and responsive."""
         data = {"model": self.model, "prompt": "test", "stream": False}
         res = self._call_api("/api/generate", data)
-        return res is not None
+        is_connected = res is not None
+        if is_connected:
+            print("[OllamaClient] ✅ Connected to Ollama server")
+        else:
+            print("[OllamaClient] ⚠️ Ollama not available - using heuristic fallbacks")
+        return is_connected
 
     def classify_safety(self, prompt: str) -> dict:
         """
