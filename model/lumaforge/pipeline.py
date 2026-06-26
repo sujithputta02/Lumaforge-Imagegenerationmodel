@@ -3,6 +3,7 @@ import time
 import random
 import torch
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageEnhance
+import numpy as np
 
 class LumaForgePipeline:
     def __init__(self, model_id="stable-diffusion-v1-5/stable-diffusion-v1-5", device="mps"):
@@ -110,9 +111,21 @@ class LumaForgePipeline:
             # Elite quality enhancement - match ChatGPT/DALL-E 3 quality
             prompt_lower = prompt.lower()
             
+            # Logical & scientific accuracy framework
+            # Ensures objects follow real-world physics and natural composition
+            accuracy_keywords = [
+                "realistic physics", "logically composed", "scientifically accurate",
+                "natural perspective", "accurate proportions", "physically plausible"
+            ]
+            
             # Add photorealism & detail keywords if not present
             detail_keywords = ["photorealistic", "professional", "detailed", "sharp focus", "high-resolution", "8k"]
             has_quality_keyword = any(kw in prompt_lower for kw in detail_keywords)
+            has_accuracy = any(kw in prompt_lower for kw in accuracy_keywords)
+            
+            if not has_accuracy:
+                # Prepend accuracy requirements
+                prompt = f"{prompt}, scientifically accurate, realistic physics, natural perspective, logically composed"
             
             if not has_quality_keyword:
                 prompt = f"{prompt}, photorealistic rendering, professional photography, ultra-detailed, 8k resolution, sharp focus, cinematic lighting, award-winning quality"
@@ -125,7 +138,9 @@ class LumaForgePipeline:
                 "poorly drawn face, bad face, frowny, asymmetrical face, mutation, mutated, "
                 "bad teeth, bad eyes, dead eyes, weird eyes, crossed eyes, multiple views, multiple people confused, "
                 "watermark, text overlay, artificial, CGI, render, plastic, doll, toy, figure, statue, sculpture, "
-                "pixelated, pixelation, posterize, paint-by-numbers, cartoon, anime, cell-shaded, toon, comic"
+                "pixelated, pixelation, posterize, paint-by-numbers, cartoon, anime, cell-shaded, toon, comic, "
+                "illogical composition, floating objects, defying gravity, physically impossible, broken physics, "
+                "unnatural lighting, impossible perspective, unrealistic proportions, anatomically incorrect"
             )
             
             if not negative_prompt:
@@ -172,14 +187,20 @@ class LumaForgePipeline:
                     )
                     image = output.images[0]
                     
-                    # Post-processing: Enhance clarity and sharpness
-                    from PIL import ImageEnhance
-                    enhancer = ImageEnhance.Sharpness(image)
-                    image = enhancer.enhance(1.15)  # Slight sharpness boost
+                    # Post-processing pipeline for maximum clarity & realism
+                    print("[LumaForgePipeline] Starting post-processing clarity pipeline...")
                     
-                    contrast_enhancer = ImageEnhance.Contrast(image)
-                    image = contrast_enhancer.enhance(1.05)  # Slight contrast boost
+                    # 1. Enhance clarity
+                    image = self._enhance_clarity(image)
                     
+                    # 2. Restore faces if portrait/character
+                    if any(keyword in prompt.lower() for keyword in ["face", "portrait", "character", "person", "people", "wizard", "man", "woman", "human", "head"]):
+                        image = self._restore_face(image)
+                    
+                    # 3. Upscale 2x for maximum detail
+                    image = self._upscale_image(image, scale=2)
+                    
+                    print("[LumaForgePipeline] ✅ Post-processing pipeline completed")
                     print(f"[LumaForgePipeline] Elite inference completed with post-processing")
                 except Exception as e:
                     print(f"[LumaForgePipeline Error] Inference failed: {e}. Falling back to mock image.")
@@ -755,6 +776,101 @@ class LumaForgePipeline:
             except Exception:
                 return 0
         return 0
+
+    def _restore_face(self, image: Image.Image) -> Image.Image:
+        """
+        Restores facial details and clarity using GFPGAN for crystal-clear faces.
+        Falls back gracefully if GFPGAN not available.
+        """
+        try:
+            from gfpgan import GFPGANer
+            
+            # Initialize GFPGAN
+            restorer = GFPGANer(
+                scale=2,
+                model_path='https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth',
+                upscale=True,
+                arch='clean',
+                channel_multiplier=2,
+                bg_upsampler=None,
+                device=self.device
+            )
+            
+            # Convert PIL to numpy (GFPGAN works with numpy arrays)
+            img_np = np.array(image)
+            
+            # Restore faces
+            _, _, output = restorer.enhance(img_np, has_aligned=False, only_center_face=False, pad=10, weight=0.7)
+            
+            # Convert back to PIL
+            restored = Image.fromarray(output)
+            
+            print("[LumaForgePipeline] ✅ Face restoration completed with GFPGAN")
+            return restored
+        except Exception as e:
+            print(f"[LumaForgePipeline Warning] Face restoration failed ({e}). Continuing without restoration.")
+            return image
+
+    def _upscale_image(self, image: Image.Image, scale: int = 2) -> Image.Image:
+        """
+        Upscales image using Real-ESRGAN for maximum clarity and detail.
+        Falls back to Lanczos if Real-ESRGAN unavailable.
+        """
+        try:
+            from basicsr.archs.rrdbnet_arch import RRDBNet
+            from realesrgan import RealESRGANer
+            
+            # Initialize Real-ESRGAN
+            upsampler = RealESRGANer(
+                scale=scale,
+                model_name='RealESRGAN_x2plus',
+                model_path='https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth',
+                tile=400,
+                tile_pad=10,
+                pre_pad=0,
+                half=True if self.device == "mps" else False
+            )
+            
+            # Convert PIL to numpy
+            img_np = np.array(image)
+            
+            # Upscale
+            output, _ = upsampler.enhance(img_np, outscale=scale)
+            
+            # Convert back to PIL
+            upscaled = Image.fromarray(output)
+            
+            print(f"[LumaForgePipeline] ✅ Image upscaled {scale}x with Real-ESRGAN")
+            return upscaled
+        except Exception as e:
+            print(f"[LumaForgePipeline] Real-ESRGAN unavailable ({e}). Using Lanczos upscaling.")
+            new_size = (image.width * scale, image.height * scale)
+            return image.resize(new_size, Image.Resampling.LANCZOS)
+
+    def _enhance_clarity(self, image: Image.Image) -> Image.Image:
+        """
+        Enhances image clarity through multiple post-processing techniques.
+        """
+        # 1. Unsharp mask for edge enhancement
+        blurred = image.filter(ImageFilter.GaussianBlur(1.0))
+        img_arr = np.array(image, dtype=float)
+        blur_arr = np.array(blurred, dtype=float)
+        unsharp_mask = img_arr - blur_arr
+        
+        enhanced_arr = img_arr + 0.5 * unsharp_mask
+        enhanced_arr = np.clip(enhanced_arr, 0, 255).astype(np.uint8)
+        enhanced = Image.fromarray(enhanced_arr)
+        
+        # 2. Contrast boost
+        contrast_enhancer = ImageEnhance.Contrast(enhanced)
+        enhanced = contrast_enhancer.enhance(1.1)
+        
+        # 3. Sharpness boost
+        sharpness_enhancer = ImageEnhance.Sharpness(enhanced)
+        enhanced = sharpness_enhancer.enhance(1.2)
+        
+        print("[LumaForgePipeline] ✅ Clarity enhancement applied")
+        return enhanced
 
     def _generate_mock_image(self, prompt: str, width: int, height: int, aspect_ratio: str, seed: int) -> Image:
         """
