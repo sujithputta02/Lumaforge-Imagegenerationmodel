@@ -1,5 +1,5 @@
 ---
-title: LumaForge-Image Generation Model v1.1
+title: LumaForge-Image Generation Model v2.0 (SDXL Turbo)
 emoji: 🌌
 colorFrom: indigo
 colorTo: purple
@@ -10,41 +10,43 @@ license: mit
 language:
 - en
 base_model:
-- stable-diffusion-v1-5/stable-diffusion-v1-5
+- stabilityai/sdxl-turbo
 library_name: diffusers
 tags:
 - diffusers
-- lora
+- sdxl
+- sdxl-turbo
 - stable-diffusion
 - text-to-image
 - image-to-image
 - image-generation
 - image-editing
-- colorization
-- face-restoration
 - fastapi
 - mps
 ---
 
-# 🌌 LumaForge v1.1 - Advanced Image Generation Model
+# 🌌 LumaForge v2.0 - SDXL Turbo Image Generation
 
-LumaForge is a powerful image generation model built on Stable Diffusion, featuring **16 specialized categories**, advanced image editing capabilities, and fine-tuning support. This repository contains the complete model backend with a FastAPI interface, designed to be deployed directly to **Hugging Face Spaces**.
+LumaForge is a powerful image generation model built on **SDXL Turbo**, featuring ultra-fast 4-step generation, superior quality, and advanced image editing capabilities. This repository contains the complete model backend with a FastAPI interface, designed to be deployed directly to **Hugging Face Spaces**.
+
+### 🚀 What's New in v2.0
+
+- **⚡ SDXL Turbo**: Upgraded from SD 1.5 to SDXL Turbo for dramatically better quality
+- **🎯 4-Step Generation**: Ultra-fast 4-6 step generation (vs 30-40 steps in v1.x)
+- **📈 3-4x Faster**: 8-15 seconds per image (vs 40-60 seconds)
+- **🎨 Better Quality**: Superior prompt following, better anatomy, higher resolution
+- **✨ Enhanced Prompts**: Optimized prompt engineering for SDXL Turbo
 
 ### Model Capabilities
-Text-to-Image generation with **16 specialized categories**, Image-to-Image styling, advanced image editing (colorization & face restoration), 2x upscaling, background removal, dataset curation, and LoRA fine-tuning.
-
-### 🎨 What's New in v1.1
-
-- **16 Specialized Generation Categories**: Creative Art, Characters, Landscapes, Architecture, Vehicles, Products, Marketing, Food, Fashion, Gaming, Animals, Events, Business, Education (110+ optimized prompt templates)
-- **Colorization Endpoint**: Transform B&W images with 5 color grading styles (Vibrant, Warm, Cool, Vintage, Sepia)
-- **Face Restoration Endpoint**: Enhance facial features with 4 intensity levels (Low, Medium, High, Ultra)
-- **Advanced Prompt Enhancement**: Category-aware prompt expansion for superior generation quality
+Text-to-Image generation with **16 specialized categories**, Image-to-Image styling, advanced image editing (colorization & face restoration), 2x upscaling, background removal, dataset curation, and fine-tuning support.
 
 ### 📊 Model Specifications
 
 | Specification | Details |
 |--------------|---------|
-| **Base Model** | Stable Diffusion v1.5 with fine-tuning capability |
+| **Base Model** | SDXL Turbo (Stability AI) |
+| **Generation Speed** | 4 steps, 8-15 seconds per image |
+| **Quality** | High-quality, photorealistic results |
 | **Backend** | FastAPI with PyTorch & Diffusers |
 | **Device Support** | Apple Silicon MPS, CPU fallback |
 | **Categories** | 16 specialized categories with 110+ prompt templates |

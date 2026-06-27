@@ -49,3 +49,7 @@ benchmark_report.json
 *.ntvs*
 *.njsproj
 *.sln
+
+# Ignore local tilde cache folders
+~
+.cache/
