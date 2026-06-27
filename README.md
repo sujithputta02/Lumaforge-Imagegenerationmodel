@@ -1,3 +1,16 @@
+---
+license: mit
+tags:
+- text-to-image
+- stable-diffusion
+- diffusers
+- apple-silicon
+- mps
+- nextjs
+- fastapi
+- pytorch
+---
+
 # 🎨 LumaForge: AI Image Generation Platform
 
 [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A5%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/sujithputta/Lumaforge)
