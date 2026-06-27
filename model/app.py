@@ -106,7 +106,7 @@ app.add_middleware(
 # Singletons for backend resources
 ollama_client = OllamaClient()
 safety_manager = SafetyManager(ollama_client=ollama_client)
-pipeline = LumaForgePipeline(device="mps")
+pipeline = LumaForgePipeline(device="mps", ollama_client=ollama_client)
 session_manager = SessionManager()
 
 # Background training tracking
@@ -151,8 +151,8 @@ class GenerateRequest(BaseModel):
     prompt: str
     mode: str = Field(default="general", description="Preset expansion style (general, poster, character)")
     aspect_ratio: str = Field(default="1:1", description="Dimensions (1:1, 16:9, 9:16, 4:3, 3:4)")
-    steps: int = Field(default=20, ge=1, le=100)
-    guidance_scale: float = Field(default=7.5, ge=1.0, le=20.0)
+    steps: int = Field(default=28, ge=1, le=100)  # SD 3.5 Medium optimal: 28 steps
+    guidance_scale: float = Field(default=4.5, ge=0.0, le=20.0)  # SD 3.5 Medium optimal: 4.5 guidance
     negative_prompt: str = ""
     seed: int = -1
     mock: bool = Field(default=True, description="Run mock generation pipeline (default True)")
@@ -181,8 +181,8 @@ class Img2ImgRequest(BaseModel):
     image_b64: str
     strength: float = Field(default=0.5, ge=0.0, le=1.0)
     mode: str = Field(default="general", description="Preset expansion style (general, poster, character)")
-    steps: int = Field(default=20, ge=1, le=100)
-    guidance_scale: float = Field(default=7.5, ge=1.0, le=20.0)
+    steps: int = Field(default=28, ge=1, le=100)  # SD 3.5 Medium optimal: 28 steps
+    guidance_scale: float = Field(default=4.5, ge=0.0, le=20.0)  # SD 3.5 Medium optimal: 4.5 guidance
     negative_prompt: str = ""
     seed: int = -1
     mock: bool = Field(default=False, description="Run mock generation pipeline")
@@ -211,8 +211,8 @@ class GenerateSessionRequest(BaseModel):
     prompt: str
     mode: str = Field(default="general", description="Preset expansion style (general, poster, character)")
     aspect_ratio: str = Field(default="1:1", description="Dimensions (1:1, 16:9, 9:16, 4:3, 3:4)")
-    steps: int = Field(default=20, ge=1, le=100)
-    guidance_scale: float = Field(default=7.5, ge=1.0, le=20.0)
+    steps: int = Field(default=28, ge=1, le=100)  # SD 3.5 Medium optimal: 28 steps
+    guidance_scale: float = Field(default=4.5, ge=0.0, le=20.0)  # SD 3.5 Medium optimal: 4.5 guidance
     negative_prompt: str = ""
     seed: int = -1
     mock: bool = Field(default=False, description="Run mock generation pipeline")
@@ -342,13 +342,12 @@ def api_models_switch(req: ModelSwitchRequest, request: Request):
 @app.post("/api/coherence-check")
 def api_coherence_check(req: CoherenceCheckRequest, request: Request):
     api_limiter.check_limit(request)
-    # Mock coherence check
-    return {
-        "coherence_score": 0.85,
-        "coherence_level": "high",
-        "enhancement_needed": False,
-        "recommendation": "Prompt is well-structured"
-    }
+    print(f"\n[API Coherence Check] Evaluating prompt: \"{req.prompt}\"")
+    result = ollama_client.check_prompt_coherence(req.prompt)
+    print(f" -> Score: {result.get('coherence_score')} ({result.get('coherence_level', '').upper()})")
+    print(f" -> Violations: {result.get('violations')}")
+    print(f" -> Recommendation: \"{result.get('recommendation')}\"")
+    return result
 
 @app.post("/api/enhance-image")
 def api_enhance_image(req: EnhanceImageRequest, request: Request):
@@ -580,14 +579,14 @@ def api_generate(req: GenerateRequest, request: Request):
     # 4. Save locally for record-keeping and post-safety checks
     os.makedirs("outputs", exist_ok=True)
     out_path = os.path.join("outputs", f"output_{gen_res['seed']}.png")
-    gen_res["image"].save(out_path)
+    gen_res["image"].save(out_path, pnginfo=gen_res.get("pnginfo"))
     
     # 5. Output Post-generation Screen
     post_res = safety_manager.check_output_safety(out_path, mod_res)
     
     # 6. Convert image to Base64 to return in JSON payload
     buffered = BytesIO()
-    gen_res["image"].save(buffered, format="PNG")
+    gen_res["image"].save(buffered, format="PNG", pnginfo=gen_res.get("pnginfo"))
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
     image_b64 = f"data:image/png;base64,{img_str}"
     
@@ -663,14 +662,14 @@ def api_generate_img2img(req: Img2ImgRequest, request: Request):
     # 5. Save locally for record-keeping and post-safety checks
     os.makedirs("outputs", exist_ok=True)
     out_path = os.path.join("outputs", f"output_{gen_res['seed']}.png")
-    gen_res["image"].save(out_path)
+    gen_res["image"].save(out_path, pnginfo=gen_res.get("pnginfo"))
     
     # 6. Output Post-generation Screen
     post_res = safety_manager.check_output_safety(out_path, mod_res)
     
     # 7. Convert image to Base64 to return in JSON payload
     buffered = BytesIO()
-    gen_res["image"].save(buffered, format="PNG")
+    gen_res["image"].save(buffered, format="PNG", pnginfo=gen_res.get("pnginfo"))
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
     image_b64 = f"data:image/png;base64,{img_str}"
     
@@ -897,8 +896,11 @@ def generate_session_worker(session_id: str, req: GenerateSessionRequest):
         
         # 2. Prompt Adapter Expansion
         print(f"[Session {session_id}] Expanding prompt in mode '{req.mode}'")
+        print(f"[Session {session_id}] DEBUG - Input to expand_prompt: '{final_prompt}'")
         expanded = ollama_client.expand_prompt(final_prompt, mode=req.mode)
         gen_prompt = expanded.get("full_prompt", final_prompt)
+        print(f"[Session {session_id}] DEBUG - After expand_prompt: '{gen_prompt}'")
+        print(f"[Session {session_id}] DEBUG - gen_prompt length: {len(gen_prompt)} chars")
         
         # 3. Image Generation
         print(f"[Session {session_id}] Generating image (mock={req.mock}, device={req.device})...")

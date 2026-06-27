@@ -136,11 +136,11 @@ export default function LumaForgePlayground() {
   const [prompt, setPrompt] = useState('');
   const [mode, setMode] = useState<'general' | 'poster' | 'character' | string>('general');
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16' | '4:3' | '3:4'>('1:1');
-  const [steps, setSteps] = useState(30); // Increased from 20 for better quality & clarity
-  const [cfg, setCfg] = useState(10.0); // Increased from 7.5 for better prompt adherence
+  const [steps, setSteps] = useState(28); // SD 3.5 Medium optimal: 28 steps for high-quality generation
+  const [cfg, setCfg] = useState(4.5); // SD 3.5 Medium uses 4.5 guidance
   const [negativePrompt, setNegativePrompt] = useState('');
   const [seed, setSeed] = useState<number | string>(-1);
-  const [mock, setMock] = useState(true); // Mock mode enabled by default for fast testing
+  const [mock, setMock] = useState(false); // Mock mode disabled by default to run real generation
   const [device, setDevice] = useState('mps');
 
   // Generation Results
@@ -148,6 +148,8 @@ export default function LumaForgePlayground() {
   const [genStage, setGenStage] = useState('');
   const [genResult, setGenResult] = useState<GenerateResponse | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
+  const [coherenceResult, setCoherenceResult] = useState<any>(null);
+  const [isCheckingCoherence, setIsCheckingCoherence] = useState(false);
 
   // Audit Logs
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
@@ -193,7 +195,7 @@ export default function LumaForgePlayground() {
   const [isDrawing, setIsDrawing] = useState(false);
 
   // Model Switching State
-  const [currentModel, setCurrentModel] = useState('sd-v1.5');
+  const [currentModel, setCurrentModel] = useState('sd-3.5-medium');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; quality: string; speed: string; vram_mb: number}>>([]);
   const [loadingModels, setLoadingModels] = useState(false);
 
@@ -633,6 +635,9 @@ export default function LumaForgePlayground() {
 
   // NEW: Coherence Check Handler
   const handleCoherenceCheck = async (promptToCheck: string) => {
+    if (!promptToCheck.trim()) return;
+    setIsCheckingCoherence(true);
+    setCoherenceResult(null);
     try {
       const res = await fetch('/api/coherence-check', {
         method: 'POST',
@@ -642,14 +647,7 @@ export default function LumaForgePlayground() {
 
       if (res.ok) {
         const data = await res.json();
-        console.log('✅ Coherence Check Result:', {
-          score: data.coherence_score,
-          level: data.coherence_level,
-          enhanced: data.enhancement_needed,
-          recommendation: data.recommendation
-        });
-        
-        // Return the result for display
+        setCoherenceResult(data);
         return data;
       } else {
         console.error('Coherence check failed:', res.status);
@@ -658,6 +656,8 @@ export default function LumaForgePlayground() {
     } catch (err) {
       console.error('Error checking coherence:', err);
       return null;
+    } finally {
+      setIsCheckingCoherence(false);
     }
   };
 
@@ -1317,15 +1317,84 @@ export default function LumaForgePlayground() {
 
               {/* Prompt Input */}
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-semibold text-zinc-400">Creative Prompt</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-zinc-400">Creative Prompt</label>
+                  <button
+                    type="button"
+                    onClick={() => handleCoherenceCheck(prompt)}
+                    disabled={isCheckingCoherence || !prompt.trim()}
+                    className="text-[10px] font-semibold tracking-wider text-cyan-400 hover:text-cyan-300 disabled:text-zinc-500 transition-colors uppercase flex items-center gap-1"
+                  >
+                    {isCheckingCoherence ? (
+                      <>
+                        <svg className="animate-spin h-3 w-3 text-cyan-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Checking Coherence...
+                      </>
+                    ) : (
+                      <>🔬 Check Physical Coherence</>
+                    )}
+                  </button>
+                </div>
                 <textarea 
                   value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
+                  onChange={(e) => {
+                    setPrompt(e.target.value);
+                    if (coherenceResult) setCoherenceResult(null);
+                  }}
                   placeholder={playgroundMode === 'img2img' ? "Describe the changes or style to apply to the source image..." : "e.g. 'movie poster of a cosmic astronaut in red space armor'..."}
                   rows={4}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500/50 resize-none placeholder-zinc-500 transition-all focus:ring-1 focus:ring-cyan-500/20"
                   required
                 />
+
+                {/* Coherence Check Display */}
+                {coherenceResult && (
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col gap-2 text-xs transition-all animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-zinc-300">Physics & Scientific Coherence</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                        coherenceResult.coherence_level === 'high' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                        coherenceResult.coherence_level === 'medium' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
+                        'bg-red-500/10 text-red-400 border border-red-500/20'
+                      }`}>
+                        {coherenceResult.coherence_level} ({Math.round(coherenceResult.coherence_score * 100)}%)
+                      </span>
+                    </div>
+
+                    {coherenceResult.violations && coherenceResult.violations.length > 0 ? (
+                      <div className="flex flex-col gap-1.5 mt-1">
+                        <span className="text-red-400 font-medium">Potential Logic/Physics Issues:</span>
+                        <ul className="list-disc pl-4 text-zinc-400 flex flex-col gap-1">
+                          {coherenceResult.violations.map((violation: string, idx: number) => (
+                            <li key={idx}>{violation}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <span className="text-green-400 font-medium mt-1">✓ Prompt obeys standard physical and structural logic.</span>
+                    )}
+
+                    {coherenceResult.recommendation && coherenceResult.recommendation.trim() !== "" && coherenceResult.recommendation !== prompt && (
+                      <div className="bg-cyan-500/5 border border-cyan-500/10 rounded-lg p-2.5 flex flex-col gap-2 mt-1">
+                        <span className="text-cyan-400 font-semibold">Recommended Realism Alignment:</span>
+                        <p className="text-zinc-300 italic">"{coherenceResult.recommendation}"</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPrompt(coherenceResult.recommendation);
+                            setCoherenceResult(null);
+                          }}
+                          className="self-end px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 font-semibold rounded text-[10px] uppercase transition-colors"
+                        >
+                          Apply Recommendation
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Presets & Aspect Ratios */}
@@ -1338,8 +1407,26 @@ export default function LumaForgePlayground() {
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cyan-500/50 text-zinc-300"
                   >
                     <option value="general" className="bg-[#121218] text-white">General Creative</option>
-                    <option value="poster" className="bg-[#121218] text-white">Movie Poster</option>
-                    <option value="character" className="bg-[#121218] text-white">Character Concept</option>
+                    <option value="art" className="bg-[#121218] text-white">🎨 Creative Art</option>
+                    <option value="character" className="bg-[#121218] text-white">👤 Character Concept</option>
+                    <option value="landscape" className="bg-[#121218] text-white">🌄 Landscapes & Nature</option>
+                    <option value="architecture" className="bg-[#121218] text-white">🏙️ Architecture & Interiors</option>
+                    <option value="vehicle" className="bg-[#121218] text-white">🚗 Vehicles & Racing</option>
+                    <option value="product" className="bg-[#121218] text-white">🛍️ Product Mockups</option>
+                    <option value="marketing" className="bg-[#121218] text-white">📢 Marketing & Branding</option>
+                    <option value="poster" className="bg-[#121218] text-white">🎬 Movie Poster Layout</option>
+                    <option value="food" className="bg-[#121218] text-white">🍔 Gourmet Food</option>
+                    <option value="fashion" className="bg-[#121218] text-white">👕 Fashion Editorial</option>
+                    <option value="game" className="bg-[#121218] text-white">🎮 Gaming Assets</option>
+                    <option value="animal" className="bg-[#121218] text-white">🐶 Wildlife & Pets</option>
+                    <option value="event" className="bg-[#121218] text-white">🎉 Events & Festivity</option>
+                    <option value="business" className="bg-[#121218] text-white">🏢 Business Diagrams</option>
+                    <option value="education" className="bg-[#121218] text-white">📚 Educational Graphics</option>
+                    <option value="style_anime" className="bg-[#121218] text-cyan-400">✨ AI Style: Anime</option>
+                    <option value="style_sketch" className="bg-[#121218] text-cyan-400">✨ AI Style: Pencil Sketch</option>
+                    <option value="style_oil" className="bg-[#121218] text-cyan-400">✨ AI Style: Oil Painting</option>
+                    <option value="style_pixel" className="bg-[#121218] text-cyan-400">✨ AI Style: Pixel Art</option>
+                    <option value="style_watercolor" className="bg-[#121218] text-cyan-400">✨ AI Style: Watercolor</option>
                   </select>
                 </div>
 

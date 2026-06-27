@@ -3,75 +3,69 @@ import time
 import random
 import torch
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageEnhance
+from PIL.PngImagePlugin import PngInfo
 import numpy as np
 
 class LumaForgePipeline:
-    def __init__(self, model_id="stable-diffusion-v1-5/stable-diffusion-v1-5", device="mps"):
+    def __init__(self, model_id="stabilityai/stable-diffusion-3.5-medium", device="mps", ollama_client=None):
         self.model_id = model_id
         self.device = device if torch.backends.mps.is_available() and device == "mps" else "cpu"
         self.pipe = None
         self.is_loaded = False
-        print(f"[LumaForgePipeline] Initialized pipeline with device: {self.device} (target: {model_id})")
+        self.ollama_client = ollama_client
+        print(f"[LumaForgePipeline] Initialized SD 3.5 Medium pipeline with device: {self.device}")
 
     def load_model(self):
-        """Loads the Stable Diffusion pipeline into MPS memory with quality optimizations."""
+        """Loads SD 3.5 Medium pipeline - latest Stability AI model."""
         if self.is_loaded:
             return True
             
-        print(f"[LumaForgePipeline] Loading diffusers model '{self.model_id}' onto {self.device}...")
+        print(f"[LumaForgePipeline] Loading SD 3.5 Medium model onto {self.device}...")
         print(f"[LumaForgePipeline] Checking local cache at ~/.cache/huggingface/...")
         try:
-            from diffusers import StableDiffusionPipeline
+            from diffusers import StableDiffusion3Pipeline
             import os
             
-            # Use float32 to prevent NaN overflow issues on Apple Silicon MPS
-            torch_dtype = torch.float32
+            # Use fp16 for MPS
+            torch_dtype = torch.float16
             
-            # Set cache directory explicitly to ensure we use local cache
+            # Set cache directory explicitly
             cache_dir = os.path.expanduser("~/.cache/huggingface/hub")
             
-            print(f"[LumaForgePipeline] Loading from cache (local files only)...")
-            self.pipe = StableDiffusionPipeline.from_pretrained(
+            print(f"[LumaForgePipeline] Loading SD 3.5 Medium (this will download ~5-6GB on first run)...")
+            
+            self.pipe = StableDiffusion3Pipeline.from_pretrained(
                 self.model_id,
+                text_encoder_3=None,
+                tokenizer_3=None,
                 torch_dtype=torch_dtype,
-                use_safetensors=True,
-                safety_checker=None,
-                requires_safety_checker=False,
                 cache_dir=cache_dir,
-                local_files_only=True  # CRITICAL: Use cache only, don't download
+                local_files_only=False
             )
-            print(f"[LumaForgePipeline] ✅ Model loaded from cache successfully")
+                
+            print(f"[LumaForgePipeline] ✅ SD 3.5 Medium loaded successfully")
             print(f"[LumaForgePipeline] Moving pipeline to {self.device}...")
             self.pipe.to(self.device)
+            # Keep VAE in float16 to match input latents on MPS (prevent c10::Half / float mismatch)
+            # if self.device == "mps":
+            #     print("[LumaForgePipeline] Upcasting VAE decoder to float32 precision for MPS...")
+            #     self.pipe.vae.to(dtype=torch.float32)
+            #     print("[LumaForgePipeline] ✅ VAE upcasted successfully.")
+            
             print(f"[LumaForgePipeline] ✅ Pipeline successfully moved to {self.device}")
             
-            # Load fine-tuned weights if they exist and are a valid PyTorch state dict
-            lora_path = "weights/lumaforge_lora.safetensors"
-            if os.path.exists(lora_path):
-                try:
-                    # A basic file size check to distinguish the real state dict from a demo string
-                    if os.path.getsize(lora_path) > 1000:
-                        print(f"[LumaForgePipeline] Loading fine-tuned UNet weights from {lora_path}...")
-                        state_dict = torch.load(lora_path, map_location=self.device)
-                        self.pipe.unet.load_state_dict(state_dict)
-                        print("[LumaForgePipeline] ✅ Fine-tuned UNet weights loaded successfully.")
-                    else:
-                        print(f"[LumaForgePipeline] Found demo/placeholder weights at {lora_path}. Skipping weight load.")
-                except Exception as e:
-                    print(f"[LumaForgePipeline Warning] Failed to load fine-tuned weights: {e}. Running with base model.")
-            
-            # Memory optimization for Apple Silicon
+            # Memory optimization
             if self.device == "mps":
                 print(f"[LumaForgePipeline] Enabling attention slicing for MPS memory optimization...")
                 self.pipe.enable_attention_slicing()
                 print(f"[LumaForgePipeline] ✅ Attention slicing enabled.")
                 
             self.is_loaded = True
-            print("[LumaForgePipeline] ✅ Model ready for fast inference!")
+            print("[LumaForgePipeline] ✅ SD 3.5 Medium ready for inference!")
             return True
         except Exception as e:
-            print(f"[LumaForgePipeline Error] Failed to load model from cache: {e}")
-            print(f"[LumaForgePipeline] Model may not be cached. Download it first or use mock mode.")
+            print(f"[LumaForgePipeline Error] Failed to load SD 3.5 Medium: {e}")
+            print(f"[LumaForgePipeline] Model needs to be downloaded first.")
             self.is_loaded = False
             return False
 
@@ -94,6 +88,7 @@ class LumaForgePipeline:
         
         image = None
         used_mock = False
+        gen_prompt = prompt
         
         # Extract quoted titles for negative prompt and overlay logic
         import re
@@ -108,71 +103,51 @@ class LumaForgePipeline:
             # Simulate processing time
             time.sleep(1.5)
         else:
-            # Elite accuracy & quality enhancement with weighted emphasis
+            # SD 3.5 Medium: Use Ollama to optimize prompt for 77-token limit
             prompt_lower = prompt.lower()
             
-            # Extract key subject (wizard, person, object, etc.) for emphasis
-            subject_keywords = {
-                "wizard": "(wizard:1.4)",
-                "person": "(person:1.3)",
-                "character": "(character:1.3)",
-                "man": "(man:1.3)",
-                "woman": "(woman:1.3)",
-                "portrait": "(portrait:1.3)",
-                "face": "(face:1.2)",
-                "dragon": "(dragon:1.3)",
-                "castle": "(castle:1.2)",
-                "spaceship": "(spaceship:1.2)",
-                "robot": "(robot:1.2)"
-            }
-            
-            # Add emphasis to primary subject
-            for subject, emphasis in subject_keywords.items():
-                if subject in prompt_lower:
-                    # Replace subject with emphasized version
-                    prompt = prompt.replace(subject, emphasis, 1)
-                    break
-            
-            # Accuracy & detail framework - PREPEND for higher priority
-            accuracy_prefix = (
-                "high detail, high quality, accurate, detailed, sharp, clear, well-defined, "
-                "correct anatomy, correct proportions, realistic rendering, "
-            )
-            
-            # Add photorealism & detail keywords if not present
-            detail_keywords = ["photorealistic", "professional", "detailed", "sharp focus", "high-resolution", "8k"]
-            has_quality_keyword = any(kw in prompt_lower for kw in detail_keywords)
-            
-            if not has_quality_keyword:
-                quality_suffix = "photorealistic rendering, professional photography, ultra-detailed, 8k resolution, sharp focus, cinematic lighting, award-winning quality"
-                prompt = f"{accuracy_prefix}{prompt}, {quality_suffix}"
+            # Use Ollama to intelligently compress the prompt if needed
+            if self.ollama_client:
+                print(f"[LumaForgePipeline] Optimizing prompt for SD 3.5 Medium token limit...")
+                optimization = self.ollama_client.optimize_prompt_for_sd35(prompt, max_tokens=256)
+                
+                if optimization["was_compressed"]:
+                    print(f"[LumaForgePipeline] ✅ Prompt optimized: {optimization['original_tokens']} → {optimization['final_tokens']} tokens")
+                    prompt = optimization["optimized_prompt"]
+                else:
+                    print(f"[LumaForgePipeline] ✅ Prompt already optimal ({optimization['original_tokens']} tokens)")
             else:
-                prompt = f"{accuracy_prefix}{prompt}"
+                print(f"[LumaForgePipeline] ⚠️  Ollama not available, using original prompt")
             
-            # Ultra-elite negative prompt - force subject inclusion & accuracy
-            elite_neg = (
-                "blurry, blur, out of focus, low quality, low resolution, duplicate, bad anatomy, deformed, "
-                "distorted, mutated, extra limbs, missing limbs, malformed hands, bad hands, extra fingers, "
-                "missing fingers, disfigured, poorly drawn, bad proportions, gross proportions, ugly, "
-                "poorly drawn face, bad face, frowny, asymmetrical face, mutation, mutated, "
-                "bad teeth, bad eyes, dead eyes, weird eyes, crossed eyes, multiple views, multiple people confused, "
-                "watermark, text overlay, artificial, CGI, render, plastic, doll, toy, figure, statue, sculpture, "
-                "pixelated, pixelation, posterize, paint-by-numbers, cartoon, anime, cell-shaded, toon, comic, "
-                "illogical composition, floating objects, defying gravity, physically impossible, broken physics, "
-                "unnatural lighting, impossible perspective, unrealistic proportions, anatomically incorrect, "
-                "missing subject, subject absent, no main character, empty scene, background only, "
-                "cropped face, cut off head, partial view, incomplete, truncated, cut off"
-            )
+            # OPTIMIZED NEGATIVE PROMPT (essential negatives only for SD 3.5 Medium)
+            core_negatives = "low quality, blurry"
+            
+            # Add facial negatives for character/portrait images
+            if any(kw in prompt_lower for kw in ["face", "portrait", "character", "person", "wizard", "man", "woman"]):
+                core_negatives = f"{core_negatives}, bad anatomy"
+            
+            # Style-aware exclusions (minimal)
+            if "photorealistic" in prompt_lower or "photo" in prompt_lower:
+                core_negatives = f"{core_negatives}, cartoon"
+            elif "anime" in prompt_lower:
+                core_negatives = f"{core_negatives}, photorealistic"
             
             if not negative_prompt:
-                negative_prompt = elite_neg
+                negative_prompt = core_negatives
             else:
-                negative_prompt = f"{negative_prompt}, {elite_neg}"
+                negative_prompt = f"{negative_prompt}, {core_negatives}"
 
-            # If a title is found in the prompt, suppress model text generation to avoid double/garbled lettering
+            # If titles found, suppress text generation
             if titles:
-                neg_text = "text, letters, words, writing, signage, gibberish lettering, garbled text"
-                negative_prompt = f"{negative_prompt}, {neg_text}"
+                negative_prompt = f"{negative_prompt}, text, letters"
+            
+            # Token estimation (rough: ~1.3 chars per token)
+            prompt_tokens = len(prompt) // 1.3
+            neg_tokens = len(negative_prompt) // 1.3
+            
+            print(f"[LumaForgePipeline] Token estimate: prompt ~{int(prompt_tokens)}, negative ~{int(neg_tokens)}")
+            if prompt_tokens > 256:
+                print(f"[LumaForgePipeline] ⚠️  Prompt may be truncated (exceeds 256 tokens)")
                     
             loaded = self.load_model()
             if not loaded:
@@ -182,21 +157,16 @@ class LumaForgePipeline:
                 time.sleep(1.5)
             else:
                 try:
-                    # Use even higher steps and guidance for MAXIMUM accuracy (40 steps, 12.0 guidance)
-                    optimized_steps = max(steps, 40)  # Minimum 40 steps for high accuracy
-                    optimized_guidance = max(guidance_scale, 12.0)  # Minimum 12.0 for strong prompt adherence
+                    # 8. SD 3.5 OPTIMAL PARAMETERS
+                    optimized_steps = 28
+                    optimized_guidance = 4.5
                     
-                    print(f"[LumaForgePipeline] Running accuracy-focused inference (steps={optimized_steps}, guidance_scale={optimized_guidance}, seed={seed})")
+                    print(f"[LumaForgePipeline] SD 3.5 Medium inference: steps={optimized_steps}, guidance={optimized_guidance}, seed={seed}")
+                    print(f"[LumaForgePipeline] Prompt: {prompt[:100]}...")
+                    print(f"[LumaForgePipeline] Negative: {negative_prompt[:80]}...")
                     generator = torch.Generator(device=self.device).manual_seed(seed)
                     
-                    # Use DPM++ scheduler for better quality
-                    from diffusers import DPMSolverMultistepScheduler
-                    self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(
-                        self.pipe.scheduler.config,
-                        algorithm_type="dpmsolver++"
-                    )
-                    
-                    # Run diffusion with optimized settings
+                    # Run SD 3.5 Medium diffusion
                     output = self.pipe(
                         prompt=prompt,
                         negative_prompt=negative_prompt,
@@ -208,21 +178,7 @@ class LumaForgePipeline:
                     )
                     image = output.images[0]
                     
-                    # Post-processing pipeline for maximum clarity & realism
-                    print("[LumaForgePipeline] Starting post-processing clarity pipeline...")
-                    
-                    # 1. Enhance clarity
-                    image = self._enhance_clarity(image)
-                    
-                    # 2. Restore faces if portrait/character
-                    if any(keyword in prompt.lower() for keyword in ["face", "portrait", "character", "person", "people", "wizard", "man", "woman", "human", "head"]):
-                        image = self._restore_face(image)
-                    
-                    # 3. Upscale 2x for maximum detail
-                    image = self._upscale_image(image, scale=2)
-                    
-                    print("[LumaForgePipeline] ✅ Post-processing pipeline completed")
-                    print(f"[LumaForgePipeline] Elite inference completed with post-processing")
+                    print(f"[LumaForgePipeline] ✅ SD 3.5 Medium inference completed")
                 except Exception as e:
                     print(f"[LumaForgePipeline Error] Inference failed: {e}. Falling back to mock image.")
                     image = self._generate_mock_image(prompt, width, height, aspect_ratio, seed)
@@ -248,8 +204,19 @@ class LumaForgePipeline:
         
         print(f"[LumaForgePipeline] Generation complete: {latency_sec:.2f}s, memory={memory_used_mb:.1f}MB, used_mock={used_mock}")
         
+        # Construct PNG Metadata
+        metadata = PngInfo()
+        metadata.add_text("prompt", str(gen_prompt))
+        metadata.add_text("negative_prompt", str(negative_prompt))
+        metadata.add_text("seed", str(seed))
+        metadata.add_text("steps", str(steps))
+        metadata.add_text("guidance_scale", str(guidance_scale))
+        metadata.add_text("model_id", str(self.model_id))
+        metadata.add_text("software", "LumaForge AuraGen Core")
+        
         return {
             "image": image,
+            "pnginfo": metadata,
             "latency_sec": latency_sec,
             "memory_used_mb": memory_used_mb,
             "seed": seed,
@@ -442,8 +409,20 @@ class LumaForgePipeline:
         # Apply logo watermark
         output_image = self._overlay_lumaforge_logo(output_image)
         
+        # Construct PNG Metadata
+        metadata = PngInfo()
+        metadata.add_text("prompt", str(prompt))
+        metadata.add_text("negative_prompt", str(negative_prompt))
+        metadata.add_text("seed", str(seed))
+        metadata.add_text("steps", str(steps))
+        metadata.add_text("guidance_scale", str(guidance_scale))
+        metadata.add_text("strength", str(strength))
+        metadata.add_text("model_id", str(self.model_id))
+        metadata.add_text("software", "LumaForge AuraGen Core")
+
         return {
             "image": output_image,
+            "pnginfo": metadata,
             "latency_sec": latency_sec,
             "memory_used_mb": memory_used_mb,
             "seed": seed,
@@ -1042,100 +1021,283 @@ class LumaForgePipeline:
         return [(15, 32, 67), (70, 130, 180)]
 
     def _overlay_poster_typography(self, image: Image, title: str) -> Image:
-        """Overlays professional crisp typography on the generated image with a dark gradient vignette."""
+        """Overlays professional premium typography on the generated movie poster image."""
         try:
-            from PIL import ImageDraw, ImageFont
+            from PIL import ImageDraw, ImageFont, ImageFilter, ImageOps
+            import os
+            import re
             
-            # Make a copy of the image to modify
+            # Copy base canvas
             img = image.copy()
             width, height = img.size
             
-            title_text = title.upper()
-            sub_text = "A LUMAFORGE CINEMATIC PRODUCTION"
+            # Clean title
+            title_text = title.strip().upper()
             
-            # 1. Apply a smooth bottom-to-top dark vignette gradient overlay
-            # This makes the text legible on any background and fades out messy AI-generated text at the bottom
-            vignette = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-            v_draw = ImageDraw.Draw(vignette)
-            
-            start_fade_y = int(height * 0.58)
-            for y in range(start_fade_y, height):
-                ratio = (y - start_fade_y) / (height - start_fade_y)
-                alpha = int(220 * (ratio ** 1.8))
-                v_draw.line([(0, y), (width, y)], fill=(5, 5, 8, alpha))
+            # Detect layout style from prompt/title text
+            style_type = "cinematic"
+            if any(w in title_text.lower() for w in ["cyber", "neon", "retro", "hack", "system", "matrix", "future", "laser", "star", "cosmic", "galaxy"]):
+                style_type = "scifi"
+            elif any(w in title_text.lower() for w in ["luxury", "gold", "royal", "silent", "whisper", "minimal", "white", "glass", "vogue", "velvet"]):
+                style_type = "luxury"
                 
-            img = Image.alpha_composite(img.convert("RGBA"), vignette).convert("RGB")
-            draw = ImageDraw.Draw(img)
+            # Helper for character-spaced drawing
+            def get_spaced_text_width(text, font, spacing=6):
+                w = 0
+                for char in text:
+                    bbox = font.getbbox(char)
+                    char_w = bbox[2] - bbox[0]
+                    w += char_w + spacing
+                return w - spacing if w > 0 else 0
+
+            def draw_spaced_text(draw, position, text, font, fill, spacing=6, shadow_fill=None, shadow_offset=(1, 1)):
+                x, y = position
+                ox, oy = shadow_offset
+                for char in text:
+                    if shadow_fill:
+                        draw.text((x + ox, y + oy), char, fill=shadow_fill, font=font)
+                    draw.text((x, y), char, fill=fill, font=font)
+                    bbox = font.getbbox(char)
+                    char_w = bbox[2] - bbox[0]
+                    x += char_w + spacing
+
+            def draw_gradient_text(target_img, position, text, font, spacing, top_color, bottom_color, shadow_fill=None, shadow_offset=(2, 2)):
+                """Draws text with a beautiful top-to-bottom vertical color gradient."""
+                w = get_spaced_text_width(text, font, spacing)
+                bbox = font.getbbox("A")
+                h = bbox[3] - bbox[1] + 15
+                
+                # Create a mask for the text
+                mask = Image.new("L", (w + 40, h + 20), 0)
+                mask_draw = ImageDraw.Draw(mask)
+                
+                # Draw spaced text on mask
+                x_m, y_m = 20, 10
+                for char in text:
+                    mask_draw.text((x_m, y_m), char, fill=255, font=font)
+                    c_bbox = font.getbbox(char)
+                    char_w = c_bbox[2] - c_bbox[0]
+                    x_m += char_w + spacing
+                    
+                # Create gradient image of the same size
+                gradient = Image.new("RGBA", (w + 40, h + 20))
+                g_draw = ImageDraw.Draw(gradient)
+                for y in range(h + 20):
+                    ratio = y / (h + 20)
+                    r = int(top_color[0] + (bottom_color[0] - top_color[0]) * ratio)
+                    g = int(top_color[1] + (bottom_color[1] - top_color[1]) * ratio)
+                    b = int(top_color[2] + (bottom_color[2] - top_color[2]) * ratio)
+                    g_draw.line([(0, y), (w + 40, y)], fill=(r, g, b, 255))
+                    
+                # Apply mask to gradient
+                text_img = Image.new("RGBA", (w + 40, h + 20))
+                text_img.paste(gradient, (0, 0), mask)
+                
+                # Draw shadow on the main image if requested
+                if shadow_fill:
+                    sx, sy = position[0] + shadow_offset[0], position[1] + shadow_offset[1]
+                    shadow_img = Image.new("RGBA", (w + 40, h + 20), (shadow_fill[0], shadow_fill[1], shadow_fill[2], shadow_fill[3]))
+                    target_img.paste(shadow_img, (sx - 20, sy - 10), mask)
+                    
+                # Paste onto main image
+                target_img.paste(text_img, (position[0] - 20, position[1] - 10), mask)
+
+            # Setup fonts based on theme
+            font_paths = {
+                "scifi": "/System/Library/Fonts/Supplemental/Futura.ttc",
+                "luxury": "/System/Library/Fonts/Supplemental/Didot.ttc",
+                "cinematic": "/System/Library/Fonts/Supplemental/Copperplate.ttc"
+            }
+            sub_font_paths = {
+                "scifi": "/System/Library/Fonts/Supplemental/Futura.ttc",
+                "luxury": "/System/Library/Fonts/Supplemental/Baskerville.ttc",
+                "cinematic": "/System/Library/Fonts/Supplemental/Georgia.ttf"
+            }
             
-            # 2. Setup Font scaling to prevent overflow text truncation
-            font_path = "/System/Library/Fonts/Helvetica.ttc"
+            # Select active fonts with Helvetica fallbacks
+            font_path = font_paths.get(style_type, "/System/Library/Fonts/Helvetica.ttc")
+            sub_font_path = sub_font_paths.get(style_type, "/System/Library/Fonts/Helvetica.ttc")
+            
             if not os.path.exists(font_path):
-                font_path = "/System/Library/Fonts/Supplemental/Arial.ttf"
+                font_path = "/System/Library/Fonts/Helvetica.ttc"
+            if not os.path.exists(sub_font_path):
+                sub_font_path = "/System/Library/Fonts/Helvetica.ttc"
+                
+            # Font size heuristics
+            title_font_size = max(26, int(height * 0.08))
+            sub_font_size = max(10, int(height * 0.024))
+            credits_font_size = max(8, int(height * 0.016))
             
-            # Initial sizes
-            title_size = max(20, int(height * 0.068))
-            subtitle_size = max(10, int(height * 0.024))
-            max_w = int(width * 0.85)
+            # Determine maximum allowable width
+            max_w = int(width * 0.88)
             
             try:
-                title_font = ImageFont.truetype(font_path, title_size)
-                t_bbox = title_font.getbbox(title_text)
-                t_w = t_bbox[2] - t_bbox[0]
-                t_h = t_bbox[3] - t_bbox[1]
+                t_font = ImageFont.truetype(font_path, title_font_size)
+                # Compute width with spacing (default spacing is 8 for title)
+                t_spacing = 8 if style_type != "luxury" else 14
+                t_w = get_spaced_text_width(title_text, t_font, spacing=t_spacing)
                 
-                # Shrink title size dynamically if too wide
-                while t_w > max_w and title_size > 14:
-                    title_size -= 2
-                    title_font = ImageFont.truetype(font_path, title_size)
-                    t_bbox = title_font.getbbox(title_text)
-                    t_w = t_bbox[2] - t_bbox[0]
-                    t_h = t_bbox[3] - t_bbox[1]
-                    
-                sub_font = ImageFont.truetype(font_path, subtitle_size)
-                s_bbox = sub_font.getbbox(sub_text)
-                s_w = s_bbox[2] - s_bbox[0]
-                s_h = s_bbox[3] - s_bbox[1]
-                
-                # Shrink subtitle size dynamically if too wide
-                while s_w > max_w and subtitle_size > 8:
-                    subtitle_size -= 1
-                    sub_font = ImageFont.truetype(font_path, subtitle_size)
-                    s_bbox = sub_font.getbbox(sub_text)
-                    s_w = s_bbox[2] - s_bbox[0]
-                    s_h = s_bbox[3] - s_bbox[1]
+                # Shrink title if too wide
+                while t_w > max_w and title_font_size > 16:
+                    title_font_size -= 2
+                    t_font = ImageFont.truetype(font_path, title_font_size)
+                    t_w = get_spaced_text_width(title_text, t_font, spacing=t_spacing)
             except Exception:
-                title_font = ImageFont.load_default()
-                sub_font = ImageFont.load_default()
-                t_w = len(title_text) * 8
-                t_h = 12
-                s_w = len(sub_text) * 6
-                s_h = 10
+                t_font = ImageFont.load_default()
+                t_spacing = 4
+                t_w = len(title_text) * (8 + t_spacing)
                 
-            # Compute center-aligned positions
-            tx = (width - t_w) // 2
-            ty = int(height * 0.86)
+            # Create overlay canvas
+            overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
             
-            sx = (width - s_w) // 2
-            sy = int(height * 0.78)
+            if style_type == "scifi":
+                # 1. Cyberpunk/Sci-Fi Theme
+                # Bottom vignette (cyan/dark)
+                for y in range(int(height * 0.6), height):
+                    ratio = (y - int(height * 0.6)) / (height * 0.4)
+                    alpha = int(210 * (ratio ** 1.5))
+                    draw_line = ImageDraw.Draw(overlay)
+                    draw_line.line([(0, y), (width, y)], fill=(5, 10, 20, alpha))
+                
+                # Draw Title at the bottom with gradient
+                tx = (width - t_w) // 2
+                ty = int(height * 0.82)
+                
+                draw_gradient_text(
+                    overlay, (tx, ty), title_text, t_font, spacing=t_spacing,
+                    top_color=(0, 255, 255), bottom_color=(0, 128, 255),
+                    shadow_fill=(255, 0, 128, 200), shadow_offset=(-2, 2)
+                )
+                
+                # Tagline / Subtitle
+                draw_overlay = ImageDraw.Draw(overlay)
+                sub_text = "A U R A _ G E N   //   N E T _ S Y S _ A C T I V E"
+                try:
+                    s_font = ImageFont.truetype(sub_font_path, sub_font_size)
+                    s_w = get_spaced_text_width(sub_text, s_font, spacing=3)
+                except Exception:
+                    s_font = ImageFont.load_default()
+                    s_w = len(sub_text) * 10
+                sx = (width - s_w) // 2
+                sy = int(height * 0.76)
+                draw_spaced_text(draw_overlay, (sx, sy), sub_text, s_font, fill=(0, 240, 255, 220), spacing=3, shadow_fill=(0, 0, 0, 180))
+                
+                # Top coordinates HUD
+                hud_text = "COORD: 35.6762° N, 139.6503° E | SYS: ONLINE"
+                try:
+                    h_font = ImageFont.truetype(sub_font_path, int(credits_font_size * 0.9))
+                except Exception:
+                    h_font = ImageFont.load_default()
+                draw_overlay.text((30, 30), hud_text, fill=(0, 255, 255, 120), font=h_font)
+                
+            elif style_type == "luxury":
+                # 2. Minimalist Luxury Theme
+                # Top vignette (subtle dark vignette at top)
+                for y in range(0, int(height * 0.35)):
+                    ratio = 1.0 - (y / (height * 0.35))
+                    alpha = int(140 * (ratio ** 1.8))
+                    draw_line = ImageDraw.Draw(overlay)
+                    draw_line.line([(0, y), (width, y)], fill=(8, 8, 12, alpha))
+                    
+                # Title at the top center with pearl gradient
+                tx = (width - t_w) // 2
+                ty = int(height * 0.15)
+                
+                draw_gradient_text(
+                    overlay, (tx, ty), title_text, t_font, spacing=t_spacing,
+                    top_color=(255, 255, 255), bottom_color=(235, 235, 240),
+                    shadow_fill=(0, 0, 0, 100), shadow_offset=(1, 1)
+                )
+                
+                # Gold separator line under title
+                draw_overlay = ImageDraw.Draw(overlay)
+                line_y = ty + int(height * 0.09)
+                line_w = int(t_w * 0.6)
+                lx1 = (width - line_w) // 2
+                lx2 = lx1 + line_w
+                draw_overlay.line([(lx1, line_y), (lx2, line_y)], fill=(212, 175, 55, 180), width=1) # gold line
+                
+                # Elegant tagline
+                sub_text = "L U M A F O R G E   P R E S E N T S"
+                try:
+                    s_font = ImageFont.truetype(sub_font_path, int(sub_font_size * 0.95))
+                    # Make it italic if Baskerville
+                    if "Baskerville" in sub_font_path:
+                        s_font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Baskerville.ttc", int(sub_font_size * 0.95), index=1)
+                    s_w = get_spaced_text_width(sub_text, s_font, spacing=4)
+                except Exception:
+                    s_font = ImageFont.load_default()
+                    s_w = len(sub_text) * 10
+                sx = (width - s_w) // 2
+                sy = ty - int(height * 0.05)
+                draw_spaced_text(draw_overlay, (sx, sy), sub_text, s_font, fill=(212, 175, 55, 220), spacing=4)
+                
+            else:
+                # 3. Cinematic Action Theme (Default)
+                # Bottom vignette (dark rich vignette)
+                for y in range(int(height * 0.52), height):
+                    ratio = (y - int(height * 0.52)) / (height * 0.48)
+                    alpha = int(230 * (ratio ** 2.0))
+                    draw_line = ImageDraw.Draw(overlay)
+                    draw_line.line([(0, y), (width, y)], fill=(4, 4, 6, alpha))
+                    
+                # Title at bottom with warm silver/gold metallic gradient
+                tx = (width - t_w) // 2
+                ty = int(height * 0.80)
+                
+                draw_gradient_text(
+                    overlay, (tx, ty), title_text, t_font, spacing=t_spacing,
+                    top_color=(255, 255, 255), bottom_color=(220, 215, 200),
+                    shadow_fill=(0, 0, 0, 245), shadow_offset=(3, 3)
+                )
+                
+                # Dynamic billing block text (credits line)
+                draw_overlay = ImageDraw.Draw(overlay)
+                credits_line = "STARRING GENERATIVE IMAGINATION  •  EXECUTIVE PRODUCERS LUMAFORGE LABS  •  MUSIC BY NEURAL SYNTH"
+                try:
+                    c_font = ImageFont.truetype(font_path, credits_font_size)
+                    c_w = get_spaced_text_width(credits_line, c_font, spacing=2)
+                    # Shrink if too wide
+                    while c_w > max_w and credits_font_size > 6:
+                        credits_font_size -= 1
+                        c_font = ImageFont.truetype(font_path, credits_font_size)
+                        c_w = get_spaced_text_width(credits_line, c_font, spacing=2)
+                except Exception:
+                    c_font = ImageFont.load_default()
+                    c_w = len(credits_line) * 8
+                cx_pos = (width - c_w) // 2
+                cy_pos = int(height * 0.90)
+                draw_spaced_text(draw_overlay, (cx_pos, cy_pos), credits_line, c_font, fill=(160, 160, 160, 200), spacing=2)
+                
+                # Tagline above title
+                tagline = "THE FUTURE OF CREATIVE ARTISTRY"
+                try:
+                    s_font = ImageFont.truetype(sub_font_path, sub_font_size)
+                    # Make it italic if Georgia
+                    if "Georgia" in sub_font_path:
+                        s_font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Georgia Italic.ttf", sub_font_size)
+                    s_w = get_spaced_text_width(tagline, s_font, spacing=3)
+                except Exception:
+                    s_font = ImageFont.load_default()
+                    s_w = len(tagline) * 10
+                sx = (width - s_w) // 2
+                sy = ty - int(height * 0.06)
+                draw_spaced_text(draw_overlay, (sx, sy), tagline, s_font, fill=(225, 225, 225, 255), spacing=3, shadow_fill=(0, 0, 0, 200))
+                
+                # Small minimalist line
+                line_y = (ty + sy + int(height * 0.02)) // 2
+                line_w = int(width * 0.35)
+                lx1 = (width - line_w) // 2
+                lx2 = lx1 + line_w
+                draw_overlay.line([(lx1, line_y), (lx2, line_y)], fill=(255, 255, 255, 70), width=1)
+
+            # Convert base image to RGBA, composite overlay, convert back to RGB
+            img_rgba = img.convert("RGBA")
+            composited = Image.alpha_composite(img_rgba, overlay)
             
-            # 3. Draw Subtitle drop shadow and text
-            draw.text((sx + 1, sy + 1), sub_text, fill=(0, 0, 0, 200), font=sub_font)
-            draw.text((sx, sy), sub_text, fill=(200, 200, 200, 255), font=sub_font)
-            
-            # 4. Draw Title drop shadow and text
-            draw.text((tx + 2, ty + 2), title_text, fill=(0, 0, 0, 220), font=title_font)
-            draw.text((tx, ty), title_text, fill=(255, 255, 255, 255), font=title_font)
-            
-            # 5. Draw a thin minimalist dividing line
-            line_y = int((ty + sy) / 2) + 2
-            line_w = int(width * 0.45)
-            lx1 = (width - line_w) // 2
-            lx2 = lx1 + line_w
-            draw.line([(lx1, line_y), (lx2, line_y)], fill=(255, 255, 255, 90), width=1)
-            
-            return img
+            return composited.convert("RGB")
         except Exception as e:
-            print(f"[LumaForgePipeline Warning] Failed to overlay typography: {e}")
+            print(f"[LumaForgePipeline Warning] Failed to overlay premium typography: {e}")
             return image
 
     def _overlay_lumaforge_logo(self, image: Image) -> Image:
