@@ -1130,9 +1130,12 @@ export default function LumaForgePlayground() {
       {/* HEADER NAVBAR */}
       <header className="sticky top-0 z-50 glass-dock backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-white/5">
         <div className="flex items-center gap-3">
-          <div className="relative w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-violet-500 flex items-center justify-center font-bold text-lg text-black shadow-lg shadow-cyan-500/20">
-            L
-            <div className="absolute inset-0.5 rounded-md border border-white/20 pointer-events-none" />
+          <div className="relative w-8 h-8 rounded-lg overflow-hidden shadow-lg">
+            <img 
+              src="/logo.png" 
+              alt="LumaForge Logo" 
+              className="w-full h-full object-contain"
+            />
           </div>
           <div>
             <h1 className="font-bold tracking-tight text-md">LUMAFORGE</h1>
