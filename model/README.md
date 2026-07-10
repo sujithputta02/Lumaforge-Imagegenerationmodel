@@ -1,5 +1,5 @@
 ---
-title: LumaForge-Image Generation Model v2.0 (SDXL Turbo)
+title: LumaForge-Image Generation Model v1.1 (Stable Diffusion 3.5)
 emoji: 🌌
 colorFrom: indigo
 colorTo: purple
@@ -25,7 +25,7 @@ tags:
 - mps
 ---
 
-# 🌌 LumaForge v2.0 - SDXL Turbo Image Generation
+# 🌌 LumaForge v1.1 - SD-3.5 Image Generation
 
 LumaForge is a powerful image generation model built on **SDXL Turbo**, featuring ultra-fast 4-step generation, superior quality, and advanced image editing capabilities. This repository contains the complete model backend with a FastAPI interface, designed to be deployed directly to **Hugging Face Spaces**.
 
