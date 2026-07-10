@@ -6,3 +6,5 @@ weights/
 audit_log.jsonl
 train_log.json
 .DS_Store
+*.db
+
