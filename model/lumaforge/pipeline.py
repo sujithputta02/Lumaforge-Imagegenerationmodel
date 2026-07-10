@@ -44,21 +44,25 @@ class LumaForgePipeline:
             )
                 
             print(f"[LumaForgePipeline] ✅ SD 3.5 Medium loaded successfully")
-            print(f"[LumaForgePipeline] Moving pipeline to {self.device}...")
-            self.pipe.to(self.device)
-            # Keep VAE in float16 to match input latents on MPS (prevent c10::Half / float mismatch)
-            # if self.device == "mps":
-            #     print("[LumaForgePipeline] Upcasting VAE decoder to float32 precision for MPS...")
-            #     self.pipe.vae.to(dtype=torch.float32)
-            #     print("[LumaForgePipeline] ✅ VAE upcasted successfully.")
-            
-            print(f"[LumaForgePipeline] ✅ Pipeline successfully moved to {self.device}")
-            
-            # Memory optimization
-            if self.device == "mps":
-                print(f"[LumaForgePipeline] Enabling attention slicing for MPS memory optimization...")
-                self.pipe.enable_attention_slicing()
-                print(f"[LumaForgePipeline] ✅ Attention slicing enabled.")
+            # Memory optimization & Device placement
+            if self.device in ["mps", "cuda"]:
+                try:
+                    print(f"[LumaForgePipeline] Enabling model CPU offloading for {self.device} memory optimization...")
+                    self.pipe.enable_model_cpu_offload(device=self.device)
+                    print(f"[LumaForgePipeline] ✅ Model CPU offloading enabled.")
+                except Exception as e:
+                    print(f"[LumaForgePipeline Warning] Failed to enable CPU offloading: {e}. Falling back to full device load.")
+                    print(f"[LumaForgePipeline] Moving pipeline to {self.device}...")
+                    self.pipe.to(self.device)
+                    print(f"[LumaForgePipeline] ✅ Pipeline successfully moved to {self.device}")
+                    if self.device == "mps":
+                        print(f"[LumaForgePipeline] Enabling attention slicing for MPS memory optimization...")
+                        self.pipe.enable_attention_slicing()
+                        print(f"[LumaForgePipeline] ✅ Attention slicing enabled.")
+            else:
+                print(f"[LumaForgePipeline] Moving pipeline to {self.device}...")
+                self.pipe.to(self.device)
+                print(f"[LumaForgePipeline] ✅ Pipeline successfully moved to {self.device}")
                 
             self.is_loaded = True
             print("[LumaForgePipeline] ✅ SD 3.5 Medium ready for inference!")
@@ -1206,7 +1210,7 @@ class LumaForgePipeline:
                 draw_gradient_text(
                     overlay, (tx, ty), title_text, t_font, spacing=t_spacing,
                     top_color=(255, 255, 255), bottom_color=(235, 235, 240),
-                    shadow_fill=(0, 0, 0, 100), shadow_offset=(1, 1)
+                    shadow_fill=(0, 0, 0, 180), shadow_offset=(2, 2)
                 )
                 
                 # Gold separator line under title
@@ -1230,7 +1234,7 @@ class LumaForgePipeline:
                     s_w = len(sub_text) * 10
                 sx = (width - s_w) // 2
                 sy = ty - int(height * 0.05)
-                draw_spaced_text(draw_overlay, (sx, sy), sub_text, s_font, fill=(212, 175, 55, 220), spacing=4)
+                draw_spaced_text(draw_overlay, (sx, sy), sub_text, s_font, fill=(212, 175, 55, 220), spacing=4, shadow_fill=(0, 0, 0, 160), shadow_offset=(1, 1))
                 
             else:
                 # 3. Cinematic Action Theme (Default)

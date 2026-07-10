@@ -5,6 +5,7 @@ import json
 import base64
 import threading
 import uuid
+import concurrent.futures
 from io import BytesIO
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Depends
@@ -20,6 +21,7 @@ from lumaforge.safety import SafetyManager
 from lumaforge.benchmark import BenchmarkSuite
 from lumaforge.dataset_curator import DatasetCurator
 from lumaforge.train import LumaForgeTrainer
+from lumaforge.database import DatabaseManager
 
 # Session management for async generation
 class GenerationSession:
@@ -106,8 +108,29 @@ app.add_middleware(
 # Singletons for backend resources
 ollama_client = OllamaClient()
 safety_manager = SafetyManager(ollama_client=ollama_client)
-pipeline = LumaForgePipeline(device="mps", ollama_client=ollama_client)
+db_manager = DatabaseManager()
+
+class PipelineRegistry:
+    def __init__(self, ollama_client):
+        self.ollama_client = ollama_client
+        self._cache = {}
+        self._lock = threading.Lock()
+
+    def get_pipeline(self, device: str) -> LumaForgePipeline:
+        with self._lock:
+            if device not in self._cache:
+                print(f"[PipelineRegistry] Creating and caching pipeline instance for device: {device}")
+                self._cache[device] = LumaForgePipeline(device=device, ollama_client=self.ollama_client)
+            return self._cache[device]
+
+pipeline_registry = PipelineRegistry(ollama_client=ollama_client)
+# Keep global reference to default 'mps' pipeline for backwards compatibility/direct usage
+pipeline = pipeline_registry.get_pipeline("mps")
+
 session_manager = SessionManager()
+
+# Sequential generation queue executor to prevent VRAM / hardware OOM
+generation_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
 # Background training tracking
 training_thread = None
@@ -546,6 +569,18 @@ def api_generate(req: GenerateRequest, request: Request):
     mod_res = safety_manager.moderate_prompt(req.prompt)
     
     if mod_res["status"] == "REFUSED":
+        # Log refusal to database
+        db_manager.log_generation(
+            session_id=f"direct-refused-{uuid.uuid4()}",
+            prompt=req.prompt,
+            status="refused",
+            negative_prompt=req.negative_prompt,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            seed=req.seed,
+            aspect_ratio=req.aspect_ratio,
+            device=req.device
+        )
         return {
             "status": "REFUSED",
             "prompt_metadata": mod_res,
@@ -561,51 +596,82 @@ def api_generate(req: GenerateRequest, request: Request):
     
     # 3. Image Generation
     print(f"[API Generate] Generating image (mock={req.mock}, device={req.device})...")
-    # If device matches our pipeline device, use existing pipeline, otherwise initialize
-    local_pipeline = pipeline
-    if req.device != pipeline.device:
-        local_pipeline = LumaForgePipeline(device=req.device)
+    local_pipeline = pipeline_registry.get_pipeline(req.device)
         
-    gen_res = local_pipeline.generate(
-        prompt=gen_prompt,
-        aspect_ratio=req.aspect_ratio,
-        steps=req.steps,
-        seed=req.seed,
-        guidance_scale=req.guidance_scale,
-        negative_prompt=req.negative_prompt,
-        mock=req.mock
-    )
-    
-    # 4. Save locally for record-keeping and post-safety checks
-    os.makedirs("outputs", exist_ok=True)
-    out_path = os.path.join("outputs", f"output_{gen_res['seed']}.png")
-    gen_res["image"].save(out_path, pnginfo=gen_res.get("pnginfo"))
-    
-    # 5. Output Post-generation Screen
-    post_res = safety_manager.check_output_safety(out_path, mod_res)
-    
-    # 6. Convert image to Base64 to return in JSON payload
-    buffered = BytesIO()
-    gen_res["image"].save(buffered, format="PNG", pnginfo=gen_res.get("pnginfo"))
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    image_b64 = f"data:image/png;base64,{img_str}"
-    
-    return {
-        "status": mod_res["status"],
-        "image_b64": image_b64,
-        "prompt_metadata": mod_res,
-        "expanded_prompt": expanded,
-        "generation_metadata": {
-            "latency_sec": gen_res["latency_sec"],
-            "memory_used_mb": gen_res["memory_used_mb"],
-            "seed": gen_res["seed"],
-            "width": gen_res["width"],
-            "height": gen_res["height"],
-            "device": gen_res["device"],
-            "used_mock": gen_res["used_mock"]
-        },
-        "safety_check": post_res
-    }
+    try:
+        gen_res = local_pipeline.generate(
+            prompt=gen_prompt,
+            aspect_ratio=req.aspect_ratio,
+            steps=req.steps,
+            seed=req.seed,
+            guidance_scale=req.guidance_scale,
+            negative_prompt=req.negative_prompt,
+            mock=req.mock
+        )
+        
+        # 4. Save locally for record-keeping and post-safety checks
+        os.makedirs("outputs", exist_ok=True)
+        out_path = os.path.join("outputs", f"output_{gen_res['seed']}.png")
+        gen_res["image"].save(out_path, pnginfo=gen_res.get("pnginfo"))
+        
+        # 5. Output Post-generation Screen
+        post_res = safety_manager.check_output_safety(out_path, mod_res)
+        
+        # 6. Convert image to Base64 to return in JSON payload
+        buffered = BytesIO()
+        gen_res["image"].save(buffered, format="PNG", pnginfo=gen_res.get("pnginfo"))
+        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        image_b64 = f"data:image/png;base64,{img_str}"
+        
+        # Log successful generation
+        db_manager.log_generation(
+            session_id=f"direct-{uuid.uuid4()}",
+            prompt=req.prompt,
+            status="completed",
+            expanded_prompt=expanded,
+            negative_prompt=req.negative_prompt,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            seed=gen_res["seed"],
+            aspect_ratio=req.aspect_ratio,
+            device=gen_res["device"],
+            latency_sec=gen_res["latency_sec"],
+            memory_used_mb=gen_res["memory_used_mb"],
+            image_path=out_path
+        )
+        
+        return {
+            "status": mod_res["status"],
+            "image_b64": image_b64,
+            "prompt_metadata": mod_res,
+            "expanded_prompt": expanded,
+            "generation_metadata": {
+                "latency_sec": gen_res["latency_sec"],
+                "memory_used_mb": gen_res["memory_used_mb"],
+                "seed": gen_res["seed"],
+                "width": gen_res["width"],
+                "height": gen_res["height"],
+                "device": gen_res["device"],
+                "used_mock": gen_res["used_mock"]
+            },
+            "safety_check": post_res
+        }
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[API Generate Error] Inference failed: {error_msg}")
+        db_manager.log_generation(
+            session_id=f"direct-failed-{uuid.uuid4()}",
+            prompt=req.prompt,
+            status="error",
+            negative_prompt=req.negative_prompt,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            seed=req.seed,
+            aspect_ratio=req.aspect_ratio,
+            device=req.device,
+            error_message=error_msg
+        )
+        raise HTTPException(status_code=500, detail=f"Generation failed: {error_msg}")
 
 def decode_base64_image(image_b64: str) -> Image.Image:
     try:
@@ -626,6 +692,18 @@ def api_generate_img2img(req: Img2ImgRequest, request: Request):
     mod_res = safety_manager.moderate_prompt(req.prompt)
     
     if mod_res["status"] == "REFUSED":
+        # Log refusal to database
+        db_manager.log_generation(
+            session_id=f"direct-img2img-refused-{uuid.uuid4()}",
+            prompt=req.prompt,
+            status="refused",
+            negative_prompt=req.negative_prompt,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            seed=req.seed,
+            aspect_ratio="1:1",
+            device=req.device
+        )
         return {
             "status": "REFUSED",
             "prompt_metadata": mod_res,
@@ -644,54 +722,86 @@ def api_generate_img2img(req: Img2ImgRequest, request: Request):
     
     # 4. Image Generation
     print(f"[API Generate Img2Img] Generating image (mock={req.mock}, device={req.device}, strength={req.strength})...")
-    local_pipeline = pipeline
-    if req.device != pipeline.device:
-        local_pipeline = LumaForgePipeline(device=req.device)
+    local_pipeline = pipeline_registry.get_pipeline(req.device)
         
-    gen_res = local_pipeline.generate_img2img(
-        image=img,
-        prompt=gen_prompt,
-        strength=req.strength,
-        steps=req.steps,
-        seed=req.seed,
-        guidance_scale=req.guidance_scale,
-        negative_prompt=req.negative_prompt,
-        mock=req.mock
-    )
-    
-    # 5. Save locally for record-keeping and post-safety checks
-    os.makedirs("outputs", exist_ok=True)
-    out_path = os.path.join("outputs", f"output_{gen_res['seed']}.png")
-    gen_res["image"].save(out_path, pnginfo=gen_res.get("pnginfo"))
-    
-    # 6. Output Post-generation Screen
-    post_res = safety_manager.check_output_safety(out_path, mod_res)
-    
-    # 7. Convert image to Base64 to return in JSON payload
-    buffered = BytesIO()
-    gen_res["image"].save(buffered, format="PNG", pnginfo=gen_res.get("pnginfo"))
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    image_b64 = f"data:image/png;base64,{img_str}"
-    
-    return {
-        "status": mod_res["status"],
-        "image_b64": image_b64,
-        "prompt_metadata": mod_res,
-        "expanded_prompt": expanded,
-        "generation_metadata": {
-            "latency_sec": gen_res["latency_sec"],
-            "memory_used_mb": gen_res["memory_used_mb"],
-            "seed": gen_res["seed"],
-            "width": gen_res["width"],
-            "height": gen_res["height"],
-            "steps": gen_res["steps"],
-            "guidance_scale": gen_res["guidance_scale"],
-            "strength": gen_res["strength"],
-            "device": gen_res["device"],
-            "used_mock": gen_res["used_mock"]
-        },
-        "safety_check": post_res
-    }
+    try:
+        gen_res = local_pipeline.generate_img2img(
+            image=img,
+            prompt=gen_prompt,
+            strength=req.strength,
+            steps=req.steps,
+            seed=req.seed,
+            guidance_scale=req.guidance_scale,
+            negative_prompt=req.negative_prompt,
+            mock=req.mock
+        )
+        
+        # 5. Save locally for record-keeping and post-safety checks
+        os.makedirs("outputs", exist_ok=True)
+        out_path = os.path.join("outputs", f"output_{gen_res['seed']}.png")
+        gen_res["image"].save(out_path, pnginfo=gen_res.get("pnginfo"))
+        
+        # 6. Output Post-generation Screen
+        post_res = safety_manager.check_output_safety(out_path, mod_res)
+        
+        # 7. Convert image to Base64 to return in JSON payload
+        buffered = BytesIO()
+        gen_res["image"].save(buffered, format="PNG", pnginfo=gen_res.get("pnginfo"))
+        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        image_b64 = f"data:image/png;base64,{img_str}"
+        
+        # Log successful generation to SQLite
+        db_manager.log_generation(
+            session_id=f"direct-img2img-{uuid.uuid4()}",
+            prompt=req.prompt,
+            status="completed",
+            expanded_prompt=expanded,
+            negative_prompt=req.negative_prompt,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            seed=gen_res["seed"],
+            aspect_ratio="1:1",
+            device=gen_res["device"],
+            latency_sec=gen_res["latency_sec"],
+            memory_used_mb=gen_res["memory_used_mb"],
+            image_path=out_path
+        )
+        
+        return {
+            "status": mod_res["status"],
+            "image_b64": image_b64,
+            "prompt_metadata": mod_res,
+            "expanded_prompt": expanded,
+            "generation_metadata": {
+                "latency_sec": gen_res["latency_sec"],
+                "memory_used_mb": gen_res["memory_used_mb"],
+                "seed": gen_res["seed"],
+                "width": gen_res["width"],
+                "height": gen_res["height"],
+                "steps": gen_res["steps"],
+                "guidance_scale": gen_res["guidance_scale"],
+                "strength": gen_res["strength"],
+                "device": gen_res["device"],
+                "used_mock": gen_res["used_mock"]
+            },
+            "safety_check": post_res
+        }
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[API Generate Img2Img Error] Inference failed: {error_msg}")
+        db_manager.log_generation(
+            session_id=f"direct-img2img-failed-{uuid.uuid4()}",
+            prompt=req.prompt,
+            status="error",
+            negative_prompt=req.negative_prompt,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            seed=req.seed,
+            aspect_ratio="1:1",
+            device=req.device,
+            error_message=error_msg
+        )
+        raise HTTPException(status_code=500, detail=f"Img2Img generation failed: {error_msg}")
 
 @app.post("/api/upscale")
 def api_upscale(req: UpscaleRequest, request: Request):
@@ -789,6 +899,12 @@ def api_audit_log(request: Request, limit: int = 20):
     logs = safety_manager.get_audit_logs(limit=limit)
     return {"logs": logs}
 
+@app.get("/api/history")
+def api_history(request: Request, limit: int = 50):
+    api_limiter.check_limit(request)
+    history = db_manager.get_history(limit=limit)
+    return {"history": history}
+
 def run_train_worker(req: TrainRequest):
     trainer = LumaForgeTrainer(device="mps" if req.demo else "cpu")
     trainer.run_training(
@@ -863,10 +979,7 @@ def api_curate(req: CurateRequest, request: Request):
 def api_benchmark(req: BenchmarkRequest, request: Request):
     api_limiter.check_limit(request)
     
-    # Run in a simple separate execution or directly
-    local_pipeline = pipeline
-    if req.device != pipeline.device:
-        local_pipeline = LumaForgePipeline(device=req.device)
+    local_pipeline = pipeline_registry.get_pipeline(req.device)
         
     suite = BenchmarkSuite(local_pipeline, safety_manager)
     report = suite.run(mock=req.mock)
@@ -890,6 +1003,19 @@ def generate_session_worker(session_id: str, req: GenerateSessionRequest):
                 "error": "Safety violation. Prompt contains prohibited material."
             }
             session_manager.update_session(session_id, "error", result, "Safety check failed")
+            
+            # Log refusal to SQLite
+            db_manager.log_generation(
+                session_id=session_id,
+                prompt=req.prompt,
+                status="refused",
+                negative_prompt=req.negative_prompt,
+                steps=req.steps,
+                guidance_scale=req.guidance_scale,
+                seed=req.seed,
+                aspect_ratio=req.aspect_ratio,
+                device=req.device
+            )
             return
         
         final_prompt = mod_res["final_prompt"]
@@ -904,9 +1030,7 @@ def generate_session_worker(session_id: str, req: GenerateSessionRequest):
         
         # 3. Image Generation
         print(f"[Session {session_id}] Generating image (mock={req.mock}, device={req.device})...")
-        local_pipeline = pipeline
-        if req.device != pipeline.device:
-            local_pipeline = LumaForgePipeline(device=req.device)
+        local_pipeline = pipeline_registry.get_pipeline(req.device)
         
         gen_res = local_pipeline.generate(
             prompt=gen_prompt,
@@ -951,31 +1075,57 @@ def generate_session_worker(session_id: str, req: GenerateSessionRequest):
         
         session_manager.update_session(session_id, "completed", result)
         print(f"[Session {session_id}] Generation completed successfully")
+        
+        # Log successful generation to SQLite
+        db_manager.log_generation(
+            session_id=session_id,
+            prompt=req.prompt,
+            status="completed",
+            expanded_prompt=expanded,
+            negative_prompt=req.negative_prompt,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            seed=gen_res["seed"],
+            aspect_ratio=req.aspect_ratio,
+            device=gen_res["device"],
+            latency_sec=gen_res["latency_sec"],
+            memory_used_mb=gen_res["memory_used_mb"],
+            image_path=out_path
+        )
     except Exception as e:
         error_msg = str(e)
         print(f"[Session {session_id}] Error during generation: {error_msg}")
         session_manager.update_session(session_id, "error", None, error_msg)
+        
+        # Log error to SQLite
+        db_manager.log_generation(
+            session_id=session_id,
+            prompt=req.prompt,
+            status="error",
+            negative_prompt=req.negative_prompt,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            seed=req.seed,
+            aspect_ratio=req.aspect_ratio,
+            device=req.device,
+            error_message=error_msg
+        )
 
 @app.post("/api/generate-session/start")
 def api_generate_session_start(req: GenerateSessionRequest, request: Request):
-    """Start a new generation session"""
+    """Start a new generation session in the sequential task queue"""
     api_limiter.check_limit(request)
     
     # Create session
     session_id = session_manager.create_session()
     
-    # Start generation in background thread
-    worker_thread = threading.Thread(
-        target=generate_session_worker,
-        args=(session_id, req),
-        daemon=True
-    )
-    worker_thread.start()
+    # Queue generation session in thread pool executor (sequential queue)
+    generation_executor.submit(generate_session_worker, session_id, req)
     
     return {
         "status": "started",
         "session_id": session_id,
-        "message": "Generation session started. Poll /api/generate-session/status for updates."
+        "message": "Generation session queued. Poll /api/generate-session/status for updates."
     }
 
 @app.post("/api/generate-session/status")
